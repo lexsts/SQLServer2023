@@ -1,0 +1,2 @@
+CORPORATE\G_DO-CSPN-Exec-Scripts-Database
+CORPORATE\G_DO-CSPC-Exec-Scripts-Database

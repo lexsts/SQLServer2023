@@ -1,0 +1,55 @@
+--exec sp_analyse_files_ex '%DM_GERENCIAL' --Verifica espaço desalocado
+
+select  'GuardAppEvent:Start'
+,'GuardAppEventType:METADADO'
+,'GuardAppEventStrValue:METADADO';
+USE DW_CAMBIO
+GO
+SELECT
+  'ALTER TABLE ['+schema_name(t.schema_id)+'].['+OBJECT_NAME(idx.object_id)+'] REBUILD PARTITION = '+cast(part.partition_number as varchar(max))+' WITH(DATA_COMPRESSION = PAGE )',
+  OBJECT_NAME(idx.object_id) AS TableName ,
+  psh.name AS PartitionSchemeName ,
+  fnc.name AS PartitionFunctionName,
+  part.partition_number AS PartitionNumber ,
+  fg.name AS [Filegroup],
+  rows AS 'No of Records' ,
+  CASE 
+    boundary_value_on_right 
+	WHEN 1 THEN 'less than'
+    ELSE 'less than or equal to' 
+  END AS 'Condition',
+  value AS 'Range' ,
+  part.partition_id AS [Partition Id] 
+FROM 
+  sys.partitions part 
+  INNER JOIN sys.indexes idx ON part.object_id = idx.object_id
+							 AND part.index_id = idx.index_id 
+  INNER JOIN sys.partition_schemes psh ON psh.data_space_id = idx.data_space_id
+  INNER JOIN sys.partition_functions fnc ON fnc.function_id = psh.function_id 
+  LEFT JOIN sys.partition_range_values prv ON fnc.function_id = prv.function_id
+										   AND part.partition_number = prv.boundary_id
+  INNER JOIN sys.destination_data_spaces dds ON dds.partition_scheme_id = psh.data_space_id
+											 AND dds.destination_id = part.partition_number
+  INNER JOIN sys.filegroups fg ON dds.data_space_id = fg.data_space_id
+  INNER JOIN (SELECT 
+                container_id, 
+				sum(total_pages) as total_pages
+              FROM
+                sys.allocation_units 
+			  GROUP BY 
+			    container_id) AS au ON au.container_id = part.partition_id 
+  INNER JOIN sys.tables t ON part.object_id = t.object_id 
+WHERE 
+  idx.index_id < 2
+  AND [data_compression_desc] = 'NONE' 
+  AND rows > 1000000
+  AND CAST(VALUE AS VARCHAR(MAX)) NOT LIKE '%2017%'
+ORDER BY 
+  rows desc, TableName
+
+GO
+select	'GuardAppEvent:Released';
+go
+
+
+

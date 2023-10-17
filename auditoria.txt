@@ -1,0 +1,21 @@
+USE MASTER
+GO
+
+CREATE SERVER AUDIT audit_logons                                           
+TO FILE (FILEPATH = 'C:\DBA\RETER\')
+GO
+
+
+CREATE SERVER AUDIT SPECIFICATION audit_logons_spec       
+FOR SERVER AUDIT [audit_logons]
+ADD (FAILED_LOGIN_GROUP),
+ADD (SUCCESSFUL_LOGIN_GROUP),
+ADD (LOGOUT_GROUP)
+WITH (STATE=ON)
+GO
+
+
+SELECT distinct server_principal_name,count(1)
+ FROM sys.fn_get_audit_file('C:\DBA\RETER\*.sqlaudit', default, default)
+ GROUP BY server_principal_name
+GO

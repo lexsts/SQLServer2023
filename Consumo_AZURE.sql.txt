@@ -1,0 +1,86 @@
+--Execuções em andamento
+select
+     r.session_id,
+	 r.blocking_session_id,
+	 r.total_elapsed_time,
+	 s.cpu_time,
+	 s.reads,
+	 s.writes,
+	 s.logical_reads,
+	 s.memory_usage,
+	 s.row_count,	 
+	 r.status,
+	 r.last_wait_type,	 
+	 r.wait_type,
+	 st.text,	 
+	 deqp.query_plan,
+	 r.plan_handle,
+	 s.last_request_start_time,
+	 s.login_name,
+	 s.host_name,	 
+	 r.wait_time,
+	 r.wait_resource,	 
+	 r.parallel_worker_count,
+	 s.open_transaction_count,     
+     c.client_net_address,     
+     s.program_name
+ from sys.dm_exec_requests r
+ inner join sys.dm_exec_sessions s
+ on r.session_id = s.session_id
+ left join sys.dm_exec_connections c
+ on r.session_id = c.session_id
+ outer apply sys.dm_exec_sql_text(r.sql_handle) st
+ outer APPLY sys.dm_exec_query_plan(r.plan_handle) deqp
+ where client_net_address is not null and text is not null 
+ --and s.status = 'running'
+
+ --QUERY STORE
+ SELECT 
+q.last_execution_time,
+q.query_id,
+p.plan_id,
+rs.count_executions,
+qsqt.query_sql_text,
+query_plan,
+CONVERT(NUMERIC(10,2),(rs.avg_cpu_time/1000)) as 'avg_cpu_time_seconds',
+CONVERT(NUMERIC(10,2),(rs.avg_duration/1000)) as 'avg_duration_seconds',
+CONVERT(NUMERIC(10,2),(rs.avg_logical_io_reads)) as 'avg_logical_io_reads',
+CONVERT(NUMERIC(10,2),(rs.avg_logical_io_writes)) as 'avg_logical_io_writes',
+CONVERT(NUMERIC(10,2),(rs.avg_physical_io_reads)) as 'avg_physical_io_reads',
+CONVERT(NUMERIC(10,2),(rs.avg_rowcount)) as 'avg_rowcount',*
+FROM sys.query_store_query q
+JOIN sys.query_store_plan p ON q.query_id=p.query_id
+JOIN sys.query_store_runtime_stats rs ON p.plan_id = rs.plan_id
+INNER JOIN sys.query_store_query_text qsqt ON q.query_text_id=qsqt.query_text_id
+--WHERE rs.last_execution_time > dateadd(hour,-1,getutcdate()) --TRANSAÇÕES DA ÚLTIMA HORA
+WHERE rs.last_execution_time BETWEEN '2022-01-28 04:00:00.0000000 +00:00' AND '2022-01-28 04:05:00.0000000 +00:00' --INTERVALO
+order by q.last_execution_time desc
+GO
+
+
+ --Consulta o plano de execução (PLAN_HANDLE)
+ select q.last_execution_time,q.execution_count,statement_start_offset, statement_end_offset, command = SUBSTRING (txt.text, q.statement_start_offset/2, 
+(CASE WHEN q.statement_end_offset = -1
+        THEN LEN(CONVERT(NVARCHAR(MAX), txt.text)) * 2
+        ELSE q.statement_end_offset
+END - q.statement_start_offset)/2),
+  last_worker_time/1000000. last_secs,  
+  min_worker_time/1000000. min_secs,
+  max_worker_time/1000000. max_secs,
+  total_worker_time/1000000. total_secs,  
+  last_dop,
+  min_dop,
+  max_dop,
+  last_spills,
+  min_spills,
+  max_spills,
+  cast(p.query_plan as xml) SQLPLAN
+from sys.dm_exec_query_stats q
+cross apply sys.dm_exec_sql_text (sql_handle)txt
+cross apply sys.dm_exec_text_query_plan (plan_handle, statement_start_offset, statement_end_offset) p
+where q.plan_handle = 0x060006003C362B00E08E69761202000001000000000000000000000000000000000000000000000000000000
+--0x060006003C362B00E08E69761202000001000000000000000000000000000000000000000000000000000000
+
+
+
+ --SP_HELP N'sys.dm_exec_query_stats'

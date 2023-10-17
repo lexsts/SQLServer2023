@@ -1,0 +1,15 @@
+After some Google searching (a lot, actually) I came across this procedure which seems to have fixed it:
+1. First we need to find the name of the service account used by the instance of SQL Server. It will probably be something like ‘SQLServerMSSQLUser$[Computer_Name]$[Instance_Name]‘.
+2. One way to do this is to navigate to the installation directory or your SQL Instance. By default SQL Server is installed at C:\Program Files\Microsoft SQL Server\MSSQL10_50.InstanceName.
+3. Right click on the MSSQL folder and click Properties.
+4. Click the Security tab and write down the user in the Group or user names window that matches the pattern of ‘SQLServerMSSQLUser$[Computer_Name]$[Instance_Name]‘.
+5. Now, open the Microsoft Management Console (MMC) by click Start -> Run, entering mmc and pressing Enter.
+6. Add the Certificates snap-in by clicking File -> Add/Remove Snap-in… and double clicking the Certificates item (Note: Select computer account and Local computer in the two pages on the wizard that appears.
+7. Click Ok.
+8. Expand Certificates (Local Computer) -> Personal -> Certificates and find the SSL certificate you imported.
+9. Right click on the imported certificate (the one you selected in the SQL Server Configuration Manager) and click All Tasks -> Manage Private Keys…
+10. Click the Add… button under the Group or user names list box.
+11. Enter the SQL service account name that you copied in step 4 and click OK.
+12. By default the service account will be given both Full control and Read permissions but it only needs to be able to Read the private key. Uncheck the Allow Full Control option.
+13. Click OK.
+14. Close the MMC and restart the SQL service.

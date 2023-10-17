@@ -1,0 +1,8 @@
+select
+    a.name as TableName,
+    b.name as IdentityColumn
+from
+    sysobjects a inner join syscolumns b on a.id = b.id
+where
+    columnproperty(a.id, b.name, 'isIdentity') = 1
+    and objectproperty(a.id, 'isTable') = 1

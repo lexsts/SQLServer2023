@@ -1,0 +1,14 @@
+select 
+  descdatasource.path Datasource,
+  catalog.path Relatorio,
+  cast(cast(cast(descdatasource.Content as varbinary(max)) as varchar (max)) as xml) XMLDADOSCONEXAO
+from 
+  ReportServer.dbo.catalog 
+  inner join ReportServer.dbo.datasource on datasource.itemid = catalog.itemid
+  inner join ReportServer.dbo.catalog descdatasource on descdatasource.itemid = datasource.link
+where 
+ -- catalog.path like '/%Controle de Acesso%' and 
+  catalog.type = 2 
+order by
+  1,2
+  

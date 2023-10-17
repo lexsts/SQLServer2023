@@ -1,0 +1,10 @@
+DECLARE @data_inicial datetime
+set @data_inicial='2017-03-20 00:00:00.000'
+WHILE (@data_inicial < getdate())
+BEGIN
+	UPDATE FGMCOFER_BVMF
+	SET COD_CLI=REPLICATE('#',LEN(COD_CLI))
+	where data_sess<dateadd(day,1,@data_inicial) and data_sess >= @data_inicial
+	set @data_inicial=dateadd(day,1,@data_inicial)
+END
+GO

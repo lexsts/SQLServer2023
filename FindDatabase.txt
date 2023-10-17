@@ -1,0 +1,11 @@
+
+
+	--server GERCOR0603P
+USE ADM_DASHBOARD
+--CONSULTAR BANCO EXISTENTES NO SQL SERVER
+select distinct(a.idinstance),b.instance_name,a.db_name
+from [stg].[MSSQL_Volumetria] a 
+inner join ctrl.listconnect b on a.idinstance = b.idinstance
+where DB_NAME like  ('%Web%')
+and dt_collect > (getdate()-1)
+order by b.instance_name

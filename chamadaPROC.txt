@@ -1,0 +1,5 @@
+DECLARE @P_MSG_RET varchar (800)
+DECLARE @P_COD_RET int
+
+exec SPTD_PR_GERA_ARQ_INTD @P_MSG_RET output, @P_COD_RET output
+select @P_MSG_RET,@P_COD_RET

@@ -1,0 +1,5 @@
+--// UserID 
+declare @UserId INT 
+select @UserId = USER_ID('BUSINESSINT\admoreira.cl') 
+--// lista as permissões e gera o revoke 
+SELECT [object_type] ,[object_id] ,[principal_id] ,[permission_type] ,[is_deny], 'EXEC catalog.revoke_permission @object_type=' + CAST([object_type] AS VARCHAR) + ', @object_id=' + CAST([object_id] AS VARCHAR) + ', @principal_id=' + CAST(principal_id AS VARCHAR) + ', @permission_type=' + CAST(permission_type AS VARCHAR) as comando FROM [SSISDB].[catalog].[explicit_object_permissions] WHERE principal_id = @UserId

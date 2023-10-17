@@ -1,0 +1,425 @@
+--2008
+use ADM_BDADOS
+go
+CREATE TABLE ADM_BDADOS.[dbo].[TB_DBCC_HISTORY](
+[Error] [int] NULL,
+[Level] [int] NULL,
+[State] [int] NULL,
+[MessageText] [varchar](7000) NULL,
+[RepairLevel] [int] NULL,
+[Status] [int] NULL,
+[DbId] [int] NULL,
+[Id] [int] NULL,
+[IndId] [int] NULL,
+[PartitionID] [int] NULL,
+[AllocUnitID] [int] NULL,
+[File] [int] NULL,
+[Page] [int] NULL,
+[Slot] [int] NULL,
+[RefFile] [int] NULL,
+[RefPage] [int] NULL,
+[RefSlot] [int] NULL,
+[Allocation] [int] NULL,
+[TimeStamp] [datetime] NULL CONSTRAINT [DF_dbcc_history_TimeStamp] DEFAULT (GETDATE())
+) ON [PRIMARY]
+GO
+create nonclustered index IE01_TB_DBCC_HISTORY ON ADM_BDADOS.dbo.TB_DBCC_HISTORY(TimeStamp);
+GO
+
+
+--2008
+use ADM_BDADOS
+go
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROC [dbo].[USP_CHECKLASTDBINTEGRITY]
+@database_name SYSNAME=NULL
+AS
+
+DELETE FROM TB_DBCC_HISTORY WHERE TimeStamp < GETDATE()-21 --Mantem apenas as últimas 3 coletas
+
+IF @database_name IS NULL -- Sem receber parâmetro, executa para todos
+BEGIN
+DECLARE database_cursor CURSOR FOR
+SELECT name
+FROM sys.databases db
+WHERE name NOT IN ('master','model','msdb','tempdb')
+AND db.state_desc = 'ONLINE'
+
+OPEN database_cursor
+FETCH next FROM database_cursor INTO @database_name
+WHILE @@FETCH_STATUS=0
+BEGIN
+
+IF (SELECT SUM((size*8)/1024) SizeMB FROM sys.master_files WHERE DB_NAME(database_id) = @database_name)<=102400
+BEGIN
+	INSERT INTO TB_DBCC_HISTORY ([Error], [Level], [State], MessageText, RepairLevel, [Status],
+[DbId], Id, IndId, PartitionID, AllocUnitID, [File], Page, Slot, RefFile, RefPage, RefSlot,Allocation)
+	EXEC ('dbcc checkdb(''' + @database_name + ''') with tableresults') --Base abaixo de 100GB
+END
+ELSE
+BEGIN
+	INSERT INTO TB_DBCC_HISTORY ([Error], [Level], [State], MessageText, RepairLevel, [Status],
+[DbId], Id, IndId, PartitionID, AllocUnitID, [File], Page, Slot, RefFile, RefPage, RefSlot,Allocation)
+	EXEC ('dbcc checkdb(''' + @database_name + ''') with tableresults,PHYSICAL_ONLY') --Base acima de 100GB	
+END
+
+
+FETCH next FROM database_cursor INTO @database_name
+END
+
+CLOSE database_cursor
+DEALLOCATE database_cursor
+END
+
+ELSE -- Recebendo parâmetro, executa para a base especificada
+
+	
+IF (SELECT SUM((size*8)/1024) SizeMB FROM sys.master_files WHERE DB_NAME(database_id) = @database_name)<=102400
+BEGIN
+	INSERT INTO TB_DBCC_HISTORY ([Error], [Level], [State], MessageText, RepairLevel, [Status],
+[DbId], Id, IndId, PartitionID, AllocUnitID, [File], Page, Slot, RefFile, RefPage, RefSlot,Allocation)
+	EXEC ('dbcc checkdb(''' + @database_name + ''') with tableresults') --Base abaixo de 100GB
+END
+ELSE
+BEGIN
+	INSERT INTO TB_DBCC_HISTORY ([Error], [Level], [State], MessageText, RepairLevel, [Status],
+[DbId], Id, IndId, PartitionID, AllocUnitID, [File], Page, Slot, RefFile, RefPage, RefSlot,Allocation)
+	EXEC ('dbcc checkdb(''' + @database_name + ''') with tableresults,PHYSICAL_ONLY') --Base acima de 100GB	
+END
+GO 
+
+
+--2000
+use ADM_BDADOS
+go
+CREATE TABLE [dbo].[TB_DBCC_HISTORY](
+	[Error] [int] NULL,
+	[Level] [int] NULL,
+	[State] [int] NULL,
+	[MessageText] [varchar](7000) NULL,
+	[RepairLevel] [int] NULL,
+	[Status] [int] NULL,
+	[DbId] [int] NULL,
+	[Id] [int] NULL,
+	[IndId] [int] NULL,
+	[File] [int] NULL,
+	[Page] [int] NULL,
+	[Slot] [int] NULL,
+	[RefFile] [int] NULL,
+	[RefPage] [int] NULL,
+	[RefSlot] [int] NULL,
+	[Allocation] [int] NULL,
+	[TimeStamp] [datetime] NULL
+) ON [PRIMARY]
+GO
+create nonclustered index IE01_TB_DBCC_HISTORY ON ADM_BDADOS.dbo.TB_DBCC_HISTORY(TimeStamp);
+GO
+
+
+--2000
+
+use ADM_BDADOS
+go
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROC [dbo].[USP_CHECKLASTDBINTEGRITY]
+@database_name SYSNAME=NULL
+AS
+
+DELETE FROM TB_DBCC_HISTORY WHERE TimeStamp < GETDATE()-21 --Mantem apenas as últimas 3 coletas
+
+IF @database_name IS NULL -- Sem receber parâmetro, executa para todos
+BEGIN
+DECLARE database_cursor CURSOR FOR
+SELECT name
+FROM master..sysdatabases db
+WHERE name NOT IN ('master','model','msdb','tempdb')
+AND db.status = 16
+
+OPEN database_cursor
+FETCH next FROM database_cursor INTO @database_name
+WHILE @@FETCH_STATUS=0
+BEGIN
+
+IF (SELECT SUM((size*8)/1024) SizeMB FROM dbo.sysfiles WHERE NAME LIKE '%' +@database_name +'%')<=102400
+BEGIN
+	INSERT INTO TB_DBCC_HISTORY ([Error],[Level],[State],[MessageText],[RepairLevel],[Status],[DbId],[Id],[IndId],[File],[Page],[Slot],[RefFile],[RefPage],[RefSlot],[Allocation])
+	EXEC ('dbcc checkdb(''' + @database_name + ''') with tableresults') --Base abaixo de 100GB
+END
+ELSE
+BEGIN
+	INSERT INTO TB_DBCC_HISTORY ([Error],[Level],[State],[MessageText],[RepairLevel],[Status],[DbId],[Id],[IndId],[File],[Page],[Slot],[RefFile],[RefPage],[RefSlot],[Allocation])
+	EXEC ('dbcc checkdb(''' + @database_name + ''') with tableresults,PHYSICAL_ONLY') --Base acima de 100GB	
+END
+
+
+FETCH next FROM database_cursor INTO @database_name
+END
+
+CLOSE database_cursor
+DEALLOCATE database_cursor
+END
+
+ELSE -- Recebendo parâmetro, executa para a base especificada
+
+	
+IF (SELECT SUM((size*8)/1024) SizeMB FROM dbo.sysfiles WHERE NAME LIKE '%' +@database_name +'%')<=102400
+BEGIN
+	INSERT INTO TB_DBCC_HISTORY ([Error],[Level],[State],[MessageText],[RepairLevel],[Status],[DbId],[Id],[IndId],[File],[Page],[Slot],[RefFile],[RefPage],[RefSlot],[Allocation])
+	EXEC ('dbcc checkdb(''' + @database_name + ''') with tableresults') --Base abaixo de 100GB
+END
+ELSE
+BEGIN
+	INSERT INTO TB_DBCC_HISTORY ([Error],[Level],[State],[MessageText],[RepairLevel],[Status],[DbId],[Id],[IndId],[File],[Page],[Slot],[RefFile],[RefPage],[RefSlot],[Allocation])
+	EXEC ('dbcc checkdb(''' + @database_name + ''') with tableresults,PHYSICAL_ONLY') --Base acima de 100GB	
+END
+GO 
+
+
+
+
+--2012
+use ADM_BDADOS
+go
+CREATE TABLE ADM_BDADOS.[dbo].[TB_DBCC_HISTORY](
+[Error] [int] NULL,
+[Level] [int] NULL,
+[State] [int] NULL,
+[MessageText] [varchar](7000) NULL,
+[RepairLevel] [int] NULL,
+[Status] [int] NULL,
+[DbId] [int] NULL,
+[DbFragId] [int] NULL,
+[ObjectId] [int] NULL,
+[IndexId] [int] NULL,
+[PartitionID] [int] NULL,
+[AllocUnitID] [int] NULL,
+[RidDbId] [int] NULL,
+[RidPruId] [int] NULL,
+[File] [int] NULL,
+[Page] [int] NULL,
+[Slot] [int] NULL,
+[RefDBId] [int] NULL,
+[RefPruId] [int] NULL,
+[RefFile] [int] NULL,
+[RefPage] [int] NULL,
+[RefSlot] [int] NULL,
+[Allocation] [int] NULL,
+[TimeStamp] [datetime] NULL CONSTRAINT [DF_dbcc_history_TimeStamp] DEFAULT (GETDATE())
+) ON [PRIMARY]
+GO
+create nonclustered index IE01_TB_DBCC_HISTORY ON ADM_BDADOS.dbo.TB_DBCC_HISTORY(TimeStamp);
+GO
+
+
+
+
+--2012
+
+use ADM_BDADOS
+go
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER PROC [dbo].[USP_CHECKLASTDBINTEGRITY]
+@database_name SYSNAME=NULL
+AS
+
+DELETE FROM TB_DBCC_HISTORY WHERE TimeStamp < GETDATE()-21 --Mantem apenas as últimas 3 coletas
+
+IF @database_name IS NULL -- Sem receber parâmetro, executa para todos
+BEGIN
+DECLARE database_cursor CURSOR FOR
+SELECT name
+FROM sys.databases db
+WHERE name NOT IN ('master','model','msdb','tempdb')
+AND db.state_desc = 'ONLINE'
+
+OPEN database_cursor
+FETCH next FROM database_cursor INTO @database_name
+WHILE @@FETCH_STATUS=0
+BEGIN
+
+IF (SELECT SUM((size*8)/1024) SizeMB FROM sys.master_files WHERE DB_NAME(database_id) = @database_name)<=102400
+BEGIN
+	INSERT INTO TB_DBCC_HISTORY ([Error],[Level],[State],[MessageText],[RepairLevel],[Status],[DbId],[DbFragId],[ObjectId],[IndexId],[PartitionID],[AllocUnitID],[RidDbId],[RidPruId],[File],[Page],[Slot],[RefDBId],[RefPruId],[RefFile],[RefPage],[RefSlot],[Allocation])
+	EXEC ('dbcc checkdb(''' + @database_name + ''') with tableresults') --Base abaixo de 100GB
+END
+ELSE
+BEGIN
+	INSERT INTO TB_DBCC_HISTORY ([Error],[Level],[State],[MessageText],[RepairLevel],[Status],[DbId],[DbFragId],[ObjectId],[IndexId],[PartitionID],[AllocUnitID],[RidDbId],[RidPruId],[File],[Page],[Slot],[RefDBId],[RefPruId],[RefFile],[RefPage],[RefSlot],[Allocation])
+	EXEC ('dbcc checkdb(''' + @database_name + ''') with tableresults,PHYSICAL_ONLY') --Base acima de 100GB	
+END
+
+
+FETCH next FROM database_cursor INTO @database_name
+END
+
+CLOSE database_cursor
+DEALLOCATE database_cursor
+END
+
+ELSE -- Recebendo parâmetro, executa para a base especificada
+
+	
+IF (SELECT SUM((size*8)/1024) SizeMB FROM sys.master_files WHERE DB_NAME(database_id) = @database_name)<=102400
+BEGIN
+	INSERT INTO TB_DBCC_HISTORY ([Error],[Level],[State],[MessageText],[RepairLevel],[Status],[DbId],[DbFragId],[ObjectId],[IndexId],[PartitionID],[AllocUnitID],[RidDbId],[RidPruId],[File],[Page],[Slot],[RefDBId],[RefPruId],[RefFile],[RefPage],[RefSlot],[Allocation])
+	EXEC ('dbcc checkdb(''' + @database_name + ''') with tableresults') --Base abaixo de 100GB
+END
+ELSE
+BEGIN
+	INSERT INTO TB_DBCC_HISTORY ([Error],[Level],[State],[MessageText],[RepairLevel],[Status],[DbId],[DbFragId],[ObjectId],[IndexId],[PartitionID],[AllocUnitID],[RidDbId],[RidPruId],[File],[Page],[Slot],[RefDBId],[RefPruId],[RefFile],[RefPage],[RefSlot],[Allocation])
+	EXEC ('dbcc checkdb(''' + @database_name + ''') with tableresults,PHYSICAL_ONLY') --Base acima de 100GB	
+END
+GO 
+
+
+
+
+--2008
+USE [msdb]
+GO
+
+/****** Object:  Job [CheckDB_Semanal]    Script Date: 22/04/2016 20:07:23 ******/
+BEGIN TRANSACTION
+DECLARE @ReturnCode INT
+SELECT @ReturnCode = 0
+/****** Object:  JobCategory [[Uncategorized (Local)]]]    Script Date: 22/04/2016 20:07:23 ******/
+IF NOT EXISTS (SELECT name FROM msdb.dbo.syscategories WHERE name=N'[Uncategorized (Local)]' AND category_class=1)
+BEGIN
+EXEC @ReturnCode = msdb.dbo.sp_add_category @class=N'JOB', @type=N'LOCAL', @name=N'[Uncategorized (Local)]'
+IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
+
+END
+
+DECLARE @jobId BINARY(16)
+EXEC @ReturnCode =  msdb.dbo.sp_add_job @job_name=N'CheckDB_Semanal', 
+		@enabled=1, 
+		@notify_level_eventlog=0, 
+		@notify_level_email=0, 
+		@notify_level_netsend=0, 
+		@notify_level_page=0, 
+		@delete_level=0, 
+		@description=N'No description available.', 
+		@category_name=N'[Uncategorized (Local)]', 
+		@owner_login_name=N'sa', @job_id = @jobId OUTPUT
+IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
+/****** Object:  Step [Procedure CheckDB]    Script Date: 22/04/2016 20:07:23 ******/
+EXEC @ReturnCode = msdb.dbo.sp_add_jobstep @job_id=@jobId, @step_name=N'Procedure CheckDB', 
+		@step_id=1, 
+		@cmdexec_success_code=0, 
+		@on_success_action=1, 
+		@on_success_step_id=0, 
+		@on_fail_action=2, 
+		@on_fail_step_id=0, 
+		@retry_attempts=0, 
+		@retry_interval=0, 
+		@os_run_priority=0, @subsystem=N'TSQL', 
+		@command=N'EXEC ADM_BDADOS.DBO.[USP_CHECKLASTDBINTEGRITY] ', 
+		@database_name=N'master', 
+		@flags=0
+IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
+EXEC @ReturnCode = msdb.dbo.sp_update_job @job_id = @jobId, @start_step_id = 1
+IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
+EXEC @ReturnCode = msdb.dbo.sp_add_jobschedule @job_id=@jobId, @name=N'Semanal', 
+		@enabled=1, 
+		@freq_type=8, 
+		@freq_interval=64, 
+		@freq_subday_type=1, 
+		@freq_subday_interval=0, 
+		@freq_relative_interval=0, 
+		@freq_recurrence_factor=1, 
+		@active_start_date=20160422, 
+		@active_end_date=99991231, 
+		@active_start_time=120000, 
+		@active_end_time=235959, 
+		@schedule_uid=N'46a52439-2b03-47e7-bcda-81c3b84c1641'
+IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
+EXEC @ReturnCode = msdb.dbo.sp_add_jobserver @job_id = @jobId, @server_name = N'(local)'
+IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
+COMMIT TRANSACTION
+GOTO EndSave
+QuitWithRollback:
+    IF (@@TRANCOUNT > 0) ROLLBACK TRANSACTION
+EndSave:
+
+GO
+
+
+
+--2005
+USE [msdb]
+GO
+
+/****** Object:  Job [CheckDB_Semanal]    Script Date: 27/04/2016 21:06:06 ******/
+BEGIN TRANSACTION
+DECLARE @ReturnCode INT
+SELECT @ReturnCode = 0
+/****** Object:  JobCategory [[Uncategorized (Local)]]]    Script Date: 27/04/2016 21:06:06 ******/
+IF NOT EXISTS (SELECT name FROM msdb.dbo.syscategories WHERE name=N'[Uncategorized (Local)]' AND category_class=1)
+BEGIN
+EXEC @ReturnCode = msdb.dbo.sp_add_category @class=N'JOB', @type=N'LOCAL', @name=N'[Uncategorized (Local)]'
+IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
+
+END
+
+DECLARE @jobId BINARY(16)
+EXEC @ReturnCode =  msdb.dbo.sp_add_job @job_name=N'CheckDB_Semanal', 
+		@enabled=1, 
+		@notify_level_eventlog=0, 
+		@notify_level_email=0, 
+		@notify_level_netsend=0, 
+		@notify_level_page=0, 
+		@delete_level=0, 
+		@description=N'No description available.', 
+		@category_name=N'[Uncategorized (Local)]', 
+		@owner_login_name=N'sa', @job_id = @jobId OUTPUT
+IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
+/****** Object:  Step [Procedure CheckDB]    Script Date: 27/04/2016 21:06:06 ******/
+EXEC @ReturnCode = msdb.dbo.sp_add_jobstep @job_id=@jobId, @step_name=N'Procedure CheckDB', 
+		@step_id=1, 
+		@cmdexec_success_code=0, 
+		@on_success_action=1, 
+		@on_success_step_id=0, 
+		@on_fail_action=2, 
+		@on_fail_step_id=0, 
+		@retry_attempts=0, 
+		@retry_interval=0, 
+		@os_run_priority=0, @subsystem=N'TSQL', 
+		@command=N'EXEC ADM_BDADOS.DBO.[USP_CHECKLASTDBINTEGRITY] ', 
+		@database_name=N'master', 
+		@flags=0
+IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
+EXEC @ReturnCode = msdb.dbo.sp_update_job @job_id = @jobId, @start_step_id = 1
+IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
+EXEC @ReturnCode = msdb.dbo.sp_add_jobschedule @job_id=@jobId, @name=N'Semanal', 
+		@enabled=1, 
+		@freq_type=8, 
+		@freq_interval=64, 
+		@freq_subday_type=1, 
+		@freq_subday_interval=0, 
+		@freq_relative_interval=0, 
+		@freq_recurrence_factor=1, 
+		@active_start_date=20160427, 
+		@active_end_date=99991231, 
+		@active_start_time=235900, 
+		@active_end_time=235959
+IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
+EXEC @ReturnCode = msdb.dbo.sp_add_jobserver @job_id = @jobId, @server_name = N'(local)'
+IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
+COMMIT TRANSACTION
+GOTO EndSave
+QuitWithRollback:
+    IF (@@TRANCOUNT > 0) ROLLBACK TRANSACTION
+EndSave:
+
+GO
+
+

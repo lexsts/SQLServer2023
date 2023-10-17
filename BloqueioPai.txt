@@ -1,0 +1,93 @@
+select  'GuardAppEvent:Start'
+		,'GuardAppEventType:METADADO'
+	    ,'GuardAppEventStrValue:METADADO';
+
+use master
+
+
+select 
+  db_name(dbid) BANCO,
+  loginame,
+  hostname,
+  program_name,
+  status,
+  * 
+from 
+  sysprocesses 
+where	
+  blocked <> 0
+  and (blocked<> spid)
+go
+
+create table #command (
+	EventType varchar(255),
+	Parameters smallint,
+	command varchar(8000),
+	spid smallint
+)
+
+declare @spid varchar(255)
+
+declare c_p cursor local for select cast(spid as varchar(255)) spid from master..sysprocesses where blocked <> 0 and spid <> @@spid --and blocked<> spid
+
+open c_p fetch next from c_p into @spid
+
+while @@fetch_status = 0
+begin
+  insert into #command (EventType,Parameters,command) exec ('dbcc inputbuffer ('+@spid+') with no_infomsgs')
+  update #command set spid = @spid where spid is null
+  fetch next from c_p into @spid
+end
+close c_p
+deallocate c_p
+
+select spid, command COMANDOS_BLOQUEADOS from #command
+
+drop table #command
+
+go
+
+select 
+  db_name(dbid) BANCO,
+  loginame,
+  hostname,
+  program_name,
+  status,
+  * 
+from 
+  sysprocesses 
+where 
+  blocked = 0 and
+  spid in (select blocked from sysprocesses where blocked <> 0) and
+  blocked<> spid
+  
+create table #command (
+	EventType varchar(255),
+	Parameters smallint,
+	command varchar(8000),
+	spid smallint
+)
+
+declare @spid varchar(255)
+
+declare c_p cursor local for select cast(spid as varchar(255)) spid from master..sysprocesses where   blocked = 0 and
+  spid in (select blocked from sysprocesses where blocked <> 0)  and spid <> @@spid --and blocked<> spid
+
+open c_p fetch next from c_p into @spid
+
+while @@fetch_status = 0
+begin
+  insert into #command (EventType,Parameters,command) exec ('dbcc inputbuffer ('+@spid+') with no_infomsgs')
+  update #command set spid = @spid where spid is null
+  fetch next from c_p into @spid
+end
+close c_p
+deallocate c_p
+
+select spid, command COMANDOS_BLOQUEIO_PAI from #command 
+
+drop table #command
+
+select	'GuardAppEvent:Released';
+go
+  

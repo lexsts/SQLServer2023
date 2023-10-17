@@ -1,0 +1,13 @@
+--Verify in which table there is a specified trigger
+SELECT trigger_name = sysobjects.name, table_name = OBJECT_NAME(parent_obj),
+  isupdate = OBJECTPROPERTY( id, 'ExecIsUpdateTrigger'), isdelete = OBJECTPROPERTY( id, 'ExecIsDeleteTrigger'),
+  isinsert = OBJECTPROPERTY( id, 'ExecIsInsertTrigger'), isafter = OBJECTPROPERTY( id, 'ExecIsAfterTrigger'),
+  isinsteadof = OBJECTPROPERTY( id, 'ExecIsInsteadOfTrigger'),
+  [disabled] = OBJECTPROPERTY(id, 'ExecIsTriggerDisabled') 
+FROM sysobjects INNER JOIN sysusers ON sysobjects.uid = sysusers.uid
+WHERE sysobjects.name in ('TRG_INSERT_HISTORICO_SITUACAO'
+,'TRG_INSERT_TITULO_ALTERACAO'
+,'HistoricoInsercao'
+,'TRG_UPDATE_DT_REQUISICAO_TITULO_ALTERACAO'
+,'TGR_INSERECLIENTESEMVINCULO'
+,'TGR_INSERECLIENTESEMVINCULO_UPD')

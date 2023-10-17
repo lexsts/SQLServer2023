@@ -1,0 +1,21 @@
+--All databases
+EXEC sp_msforeachdb 'DBCC CHECKDB(''?'') WITH NO_INFOMSGS;';
+EXEC sp_msforeachdb 'USE [?] EXEC sp_updatestats'
+
+--Get object by your page storage
+SELECT DB_NAME(Database-ID)
+SELECT FILE_NAME(File-ID)
+
+DBCC TRACEON (3604) -- To enable trace 3604 for this session
+DBCC PAGE(Database-ID, File-ID, Page-ID)
+DBCC TRACEOFF (3604)
+
+SELECT OBJECT_NAME(ObjectID)
+
+
+--UPDATEUSAGE
+--For a table
+DBCC UPDATEUSAGE(AdventureWorks, 'Sales.SalesOrderDetail');
+
+--For a index
+DBCC UPDATEUSAGE(AdventureWorks, 'Sales.SalesOrderDetail', 'IX_SalesOrderDetail_ProductID');

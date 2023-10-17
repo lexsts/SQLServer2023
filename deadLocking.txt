@@ -1,0 +1,19 @@
+
+--Identify the object where ocurred a deadlock (db_id:hobt_id (index key hash value))
+SELECT
+obj.name AS Table_Name,
+ind.name AS Index_Name,
+SCHEMA_NAME(obj.schema_id) AS Schema_name
+FROM sys.partitions par JOIN sys.objects obj ON par.OBJECT_ID = obj.OBJECT_ID
+JOIN sys.indexes ind ON par.OBJECT_ID = ind.OBJECT_ID  AND par.index_id = ind.index_id
+WHERE par.hobt_id =873694922145792
+
+
+
+
+--PAGE
+DBCC TRACESTATUS
+DBCC TRACEON(3604)
+DBCC Page(47:6:7425005,0) WITH TABLERESULTS
+DBCC TRACEOFF(3604) 
+DBCC TRACESTATUS

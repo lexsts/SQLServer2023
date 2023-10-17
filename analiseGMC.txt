@@ -1,0 +1,121 @@
+SELECT 'GuardAppEvent:Start',
+'GuardAppEventType:INC000001564856 ',
+'GuardAppEventStrValue:INC000001564856 ';
+
+dbcc traceon(3604)
+dbcc page ('GMC', 28, 6266324, 3)
+124:3:7683099
+
+select db_id()
+
+
+select * from sys.dm_exec_requests where session_id in (665, 454)
+SELECT * FROM sys.dm_os_waiting_tasks where session_id in (665, 454)
+
+exec sp_readerrorlog
+
+select * from sys.dm_exec_requests where session_id in (665, 454)
+WAITFOR DELAY '00:00:10'
+select * from sys.dm_exec_requests where session_id in (665, 454)
+
+cpu_time	total_elapsed_time	scheduler_id	task_address	reads	writes	logical_reads
+211000	725915	54	0x0000000034644B08	6534240	0	19912631
+244656	579476	3	0x000000000E627048	3084619	0	108140733
+
+cpu_time	total_elapsed_time	scheduler_id	task_address	reads	writes	logical_reads
+235407	760306	54	0x0000000034644B08	6534769	0	20932422
+271312	613867	3	0x000000000E627048	3084619	0	120825689
+
+cpu_time	total_elapsed_time	scheduler_id	task_address	reads	writes	logical_reads
+296141	825145	54	0x0000000034644B08	6535777	0	23585608
+
+cpu_time	total_elapsed_time	scheduler_id	task_address	reads	writes	logical_reads
+1184312	1558273	3	0x000000000E627048	3084619	0	578561557
+10s
+cpu_time	total_elapsed_time	scheduler_id	task_address	reads	writes	logical_reads
+1193844	1568277	3	0x000000000E627048	3084619	0	583664288
+335094	678706	3	0x000000000E627048	3084619	0	153855882
+
+cpu_time	total_elapsed_time	scheduler_id	task_address	reads	writes	logical_reads
+1125687	1495334	3	0x000000000E627048	3084619	0	548353555
+
+--20:12
+cpu_time	total_elapsed_time	scheduler_id	task_address	reads	writes	logical_reads
+15668500	16434889	3	0x000000000E627048	3085612	0	7774779709
+
+
+select top 10 * from sys.dm_os_buffer_descriptors
+
+
+SELECT * FROM sys.dm_exec_query_plan(0x06007C00E68567234003E4EE160000000000000000000000)
+SELECT * FROM sys.dm_exec_query_plan(0x06007C00E68567234003E4EE160000000000000000000000)
+
+
+0x06007C00C22F25114003F2D4320000000000000000000000
+0x06007C00E68567234003E4EE160000000000000000000000
+
+sp_help FGMCOFER_BVMF
+
+index_name	index_description	index_keys
+IE01_FGMCOFER_BVMF	nonclustered located on PSC_DBO_FGMCOFER_BVMF	DATA_SESS, COD_NEG, NUM_SEQ_OFER, NUM_GERA_OFER
+IE02_FGMCOFER_BVMF	nonclustered located on PSC_DBO_FGMCOFER_BVMF	DATA_SESS, COD_PERI_NEG
+PK_FGMCOFER_BVMF	clustered, unique, primary key located on PSC_DBO_FGMCOFER_BVMF	DATA_SESS, COD_NEG, DATA_OFER, NUM_SEQ_OFER, NUM_GERA_OFER
+
+DBCC SHOW_STATISTICS ('FGMCOFER_BVMF', 'IE01_FGMCOFER_BVMF')
+DBCC SHOW_STATISTICS ('FGMCOFER_BVMF', 'IE02_FGMCOFER_BVMF')
+DBCC SHOW_STATISTICS ('FGMCOFER_BVMF', 'PK_FGMCOFER_BVMF')
+
+sp_configure
+
+SET STATISTICS IO, TIME ON
+
+SELECT * FROM (
+SELECT * FROM DBO.FGMCOFER_BVMF AS A WITH (NOLOCK)
+    WHERE A.DATA_SESS = (
+SELECT MAX(B.DATA_SESS)
+        FROM DBO.FGMCOFER_BVMF AS B WITH (NOLOCK)
+        WHERE B.DATA_SESS    <  '2017-07-10 00:00:00.000'
+        AND B.COD_SEGM_NEG in ('A','B'))
+        AND (A.COD_TIPO_VALD = '1' OR (A.COD_TIPO_VALD = '6' AND 
+        ISNULL(A.DATA_EXP_OFER, '9999-12-31') >= '2017-07-10 00:00:00.000'))
+        AND NOT EXISTS (
+SELECT 1
+            FROM DBO.FGMCOFER_BVMF B WITH(NOLOCK)
+            WHERE B.DATA_SESS = A.DATA_SESS
+            AND B.COD_NEG = A.COD_NEG
+            AND B.NUM_SEQ_OFER = A.NUM_SEQ_OFER
+            AND B.COD_ESTD_ORDE IN ('2', '4', '8', 'C'))) AS X
+WHERE X.DATA_OFER = 
+(SELECT MAX(C.DATA_OFER)
+    FROM DBO.FGMCOFER_BVMF C WITH(NOLOCK)
+    WHERE C.DATA_SESS = X.DATA_SESS
+    AND C.COD_NEG <> 'NATU3'  --<--Retorna os dados
+    --AND C.COD_NEG = 'NATU3'  --<--Não retorna todos os dados (trava)
+    AND C.COD_NEG = X.COD_NEG
+    AND C.NUM_SEQ_OFER = X.NUM_SEQ_OFER
+    AND C.COD_EVEN_ORDE IN ('0', '5'))
+ GO
+
+
+ 
+2017-07-07 NATU3 2017-07-06 15:04:00 861294707391 11351113
+
+SELECT TOP 10 DATA_SESS, COD_NEG, NUM_SEQ_OFER, NUM_GERA_OFER
+FROM dbo.FGMCOFER_BVMF WITH(NOLOCK)
+WHERE DATA_SESS >= '2017-07-07 00:00:00.000'
+	AND COD_NEG = 'NATU3'
+	AND NUM_SEQ_OFER >= 861294707391
+	AND NUM_GERA_OFER >= 11351113
+
+SELECT TOP 10000 *
+FROM dbo.FGMCOFER_BVMF WITH(NOLOCK)
+WHERE DATA_SESS >= '2017-07-07 00:00:00.000'
+	AND COD_NEG = 'NATU3'
+	AND NUM_SEQ_OFER >= 861294707391
+	AND NUM_GERA_OFER >= 11351113
+
+861294964181
+
+SET STATISTICS IO, TIME ON
+
+SELECT 'GuardAppEvent:Released';
