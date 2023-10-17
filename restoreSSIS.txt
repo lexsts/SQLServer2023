@@ -1,0 +1,15 @@
+select * from ctrl_bco_bkp
+SELECT * FROM ctrl_log_tombamento_ipnv2 ORDER BY 2 DESC
+
+
+c:\ssis (caminho dos pacotes)
+	SSIS_BKP_PRD_PRLL
+	SSIS_MV_PRD_PRLL
+	SSIS_RST_PRD_PRLL
+
+
+--Troubleshoting
+select * from ctrl_log_create_usr --tabela com os usuários pré restore
+select * from ctrl_log_create_usr_hist --tabela com usuários pré restore historico (retenção 7 dias)
+
+

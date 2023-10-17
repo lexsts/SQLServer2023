@@ -1,0 +1,9 @@
+/*
+USE BTSMarketMaker
+SP_HELPTEXT N'dbo.FN_GetWeightedAverageTopOfBook'
+
+EXEC sp_recompile N'dbo.FN_GetWeightedAverageTopOfBook'
+EXEC sp_recompile N'dbo.SPU_Batch_Monitoring_GenerateBook_ByVolatility'
+EXEC sp_recompile N'dbo.FN_GetTopOfBookWithSpreadVolatility'
+EXEC sp_recompile N'dbo.SPU_Move_DataToHistory'
+*/

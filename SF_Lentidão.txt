@@ -1,0 +1,3 @@
+use sf
+select * from sys.objects where name='SPSF_CO_REPOSITORIO_TIPO_CODIGO' --1637632927
+select * from sys.objects where name='SPSF_CACHE_ULT_EVENTO_SINCRONIA' --1888061812 recompilação

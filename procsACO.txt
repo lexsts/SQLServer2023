@@ -1,0 +1,173 @@
+EXEC sp_recompile N'DBO.SPACO_ALOC_VALIDA_COMITENTE'
+EXEC sp_recompile N'DBO.SPACO_ALOC_AUTORIZADOS'
+EXEC sp_recompile N'DBO.SPACO_ALOC_LIMPA_TABELAS_AUX'
+EXEC sp_recompile N'DBO.SPACO_ALOC_DADOS_BLOQ_INV'
+EXEC sp_recompile N'DBO.SPACO_ALOC_MENSAGEM_XML'                           
+EXEC sp_recompile N'DBO.SPACO_ALOC_RETORNO_SOLI'                           
+EXEC sp_recompile N'DBO.SPACO_ALOC_VALIDA_QUANTIDADE'                      
+EXEC sp_recompile N'DBO.SPACO_ALOC_VALIDA_DIRECIONAMENTO'                  
+EXEC sp_recompile N'DBO.SPACO_ALOC_VALIDA_INDICACAO'                       
+EXEC sp_recompile N'DBO.SPACO_ALOC_FORMATA_ERRO_MSG'  
+EXEC sp_recompile N'DBO.SPACO_CO_COMITENTE_PESC'
+EXEC sp_recompile N'DBO.SPACO_CO_OPER_N_IDENTIF'
+EXEC sp_recompile N'DBO.SPACO_CO_IDENTIFICACAO'
+EXEC sp_recompile N'DBO.SPACO_ALOC_DADOS_ADC_INF'   
+EXEC sp_recompile N'dbo.SPACO_CO_OPER_N_IDENTIF_N2'
+EXEC sp_recompile N'dbo.SPACO_IN_REALOCACAO_LIMITE'
+EXEC sp_recompile N'dbo.SPACO_CONS_ALOC_PESQUISA'
+EXEC sp_recompile N'dbo.SPACO_ALOC_FORMATA_ERRO_MSG'
+EXEC sp_recompile N'dbo.SPACO_ALOC_MENSAGEM_XML'
+EXEC sp_recompile N'dbo.SPACO_ALOC_MENSAGEM_XML'                         
+EXEC sp_recompile N'dbo.SPACO_ALOC_AUTORIZADOS'                            
+EXEC sp_recompile N'dbo.SPACO_ALOC_DADOS_ADC_INF'                          
+EXEC sp_recompile N'dbo.SPACO_ALOC_DADOS_BLOQ_INV'                         
+EXEC sp_recompile N'dbo.SPACO_ALOC_VALIDA_QUANTIDADE'                      
+EXEC sp_recompile N'dbo.SPACO_ALOC_VALIDA_BLOQUEIO'                        
+EXEC sp_recompile N'dbo.SPACO_ALOC_LIMPA_TABELAS_AUX'                      
+EXEC sp_recompile N'dbo.SPACO_ALOC_VALIDA_INDICACAO'                       
+EXEC sp_recompile N'dbo.SPACO_ALOC_RETORNO_SOLI'                           
+EXEC sp_recompile N'dbo.SPACO_ALOC_VALIDA_COMITENTE'                       
+EXEC sp_recompile N'dbo.SPACO_ALOC_VALIDA_DIRECIONAMENTO'                  
+EXEC sp_recompile N'dbo.SPACO_ALOC_VALIDA_CARTEIRA'                        
+EXEC sp_recompile N'dbo.SPACO_ALOC_DADOS_ADC_INV'                          
+EXEC sp_recompile N'dbo.SPACO_ALOC_VALIDA_DUPLICIDADE' 
+--EXEC sp_recompile N'DBO.FNACO_VERIFICA_CONTA_TRANS'
+
+
+-- Consulta timeout PROCS do Infrapooling 
+USE ACO 
+select NOME_PROC, DESC_PROC, TEM_ULT_EXEC from dbo.TACOSEMF_PROC with (nolock) 
+where cod_grup_proc = 1 
+order by 3 desc
+
+
+
+--Exemplo de tempos de execução
+NOME_PROC						DESC_PROC						TEM_ULT_EXEC
+SPACO_ALOC_AUTORIZADOS                            	GRAVA A ALOCAÇÃO DOS NEGÓCIOS                     	1133
+SPACO_ALOC_RETORNO_SOLI                           	GRAVA MENSAGENS R1 NO TGP                         	973
+SPACO_ALOC_MENSAGEM_XML                           	EXTRAI XML                                        	500
+SPACO_ALOC_VALIDA_QUANTIDADE                      	QUANTIDADES                                       	163
+SPACO_ALOC_DADOS_ADC_INF                          	DADOS ADICIONAIS INVESTIDOR FINAL                 	143
+SPACO_ALOC_VALIDA_DIRECIONAMENTO                  	DIRECIONAMENTO                                    	143
+SPACO_ALOC_DADOS_BLOQ_INV                         	DADOS ADICIONAIS BLOQUEIO                         	66
+SPACO_ALOC_VALIDA_INDICACAO                       	LIBERAÇÃO                                         	63
+SPACO_ALOC_VALIDA_COMITENTE                       	COMITENTES                                        	36
+SPACO_ALOC_VALIDA_CARTEIRA                        	CARTEIRA                                          	26
+SPACO_ALOC_VERIFICA_FIM_VALIDACAO                 	VERIFICA VALIDAÇÕES FINALIZADAS E LIBERA MENSAGEM 	16
+SPACO_ALOC_FORMATA_ERRO_CBLCNET                   	MONTA ERRO PARA ALOCAÇÕES VIA MENSAGEM CBLCNET    	16
+SPACO_ALOC_LIMPA_TABELAS_AUX                      	LIMPA DADOS DAS TABELAS AUXILIARES                	10
+SPACO_ALOC_VALIDA_QUALIFICADO                     	QUALIFICADO                                       	10
+SPACO_ALOC_VALIDA_BLOQUEIO                        	VALIDAR BLOQUEIO                                  	10
+SPACO_ALOC_DADOS_ADC_INV                          	DADOS ADICIONAIS INVESTIDOR PRIMEIRO NIVEL        	10
+SPACO_ALOC_VALIDA_RECOMPRA                        	RECOMPRA                                          	10
+SPACO_ALOC_FORMATA_ERRO_MSG                       	MONTA ERRO PARA ALOCAÇÕES VIA MENSAGEM            	10
+SPACO_ALOC_VERIFICA_FILAS                         	VERIFICA FILAS PRONTAS PARA LIBERAÇÃO             	3
+SPACO_ALOC_VALIDA_DUPLICIDADE                     	DUPLICIDADE                                       	3
+SPACO_ALOC_INTEGRA_SISTEMAS                       	INTEGRAÇÃO COM SISTEMAS                           	0
+
+
+24/09/2015: 200 MIL A MAIS DO QUE O RECORDE
+
+
+--Melhoria 1 (Aumentar o fillfactor das tabelas abaixo):
+AACONEG_LIQC_AUX
+VIGFASE_LOTE_SOLI_RECB_MSG
+AACOMSG_RETO_SOLI_ALOC
+AACOCMTT_COPL_AUX
+AACOSOLI_ALOC_REJ
+TACOLOG_MSG
+AACOSOLI_INDA
+AACODET_SOLI_INDA
+AACOSOLI_INDA_COPL_XML
+
+
+USE FRE
+GO
+EXEC PROC_UPDATE_STATISTICS
+GO
+USE IP
+GO
+EXEC PROC_UPDATE_STATISTICS
+GO
+USE RAD
+GO
+EXEC PROC_UPDATE_STATISTICS
+GO
+USE CB
+GO
+EXEC PROC_UPDATE_STATISTICS
+GO
+USE LC
+GO
+EXEC PROC_UPDATE_STATISTICS
+GO
+USE BT
+GO
+EXEC PROC_UPDATE_STATISTICS
+GO
+USE WCE
+GO
+EXEC PROC_UPDATE_STATISTICS
+GO
+USE DI
+GO
+EXEC PROC_UPDATE_STATISTICS
+GO
+USE GL
+GO
+EXEC PROC_UPDATE_STATISTICS
+GO
+USE AN
+GO
+EXEC PROC_UPDATE_STATISTICS
+GO
+USE GA
+GO
+EXEC PROC_UPDATE_STATISTICS
+GO
+USE GAN
+GO
+EXEC PROC_UPDATE_STATISTICS
+GO
+USE TE
+GO
+EXEC PROC_UPDATE_STATISTICS
+GO
+USE II
+GO
+EXEC PROC_UPDATE_STATISTICS
+GO
+
+
+
+
+--SPACO_ALOC_AUTORIZADOS                            (Melhoria 50%)
+USE [ACO]
+GO
+CREATE NONCLUSTERED INDEX [<Name of Missing Index, sysname,>]
+ON [dbo].[AACOSOLI_INDA] ([COD_ORIG_SOLI_INDA])
+INCLUDE ([COD_SOLI_INDA],[COD_SOLI_TGP])
+GO
+
+
+
+
+
+--ENET
+
+
+USE RAD
+UPDATE STATISTICS TRASOC_EMSS WITH FULLSCAN;
+
+USE IP
+UPDATE STATISTICS TIPPAC_PROV WITH FULLSCAN;
+UPDATE STATISTICS HIPARQ WITH FULLSCAN;
+UPDATE STATISTICS TIPLOC_PUBL WITH FULLSCAN;
+UPDATE STATISTICS TIPOUTR_LOC_PUBL WITH FULLSCAN;
+UPDATE STATISTICS TIPARQ WITH FULLSCAN;
+UPDATE STATISTICS TIPCLAS_ARQ WITH FULLSCAN;
+UPDATE STATISTICS TIPTIPO_ARQ WITH FULLSCAN;
+UPDATE STATISTICS TIPCANC_ARQ WITH FULLSCAN;
+UPDATE STATISTICS TIPDOCM_INFO_PERI WITH FULLSCAN;
+UPDATE STATISTICS TIPCLAS_ARQ_EXTS WITH FULLSCAN;

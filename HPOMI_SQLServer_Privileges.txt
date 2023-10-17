@@ -1,0 +1,66 @@
+--MASTER
+use master
+go
+GRANT create table to svcHPOMiP;
+GRANT select ON sys.objects to svcHPOMiP;
+GRANT select ON sys.sysperfinfo to svcHPOMiP;
+GRANT select ON sys.dm_os_performance_counters to svcHPOMiP;
+GRANT select ON sys.sysprocesses to svcHPOMiP;
+GRANT select ON sys.dm_exec_sessions to svcHPOMiP;
+GRANT select ON sys.dm_exec_requests to svcHPOMiP;
+GRANT select ON sys.dm_tran_locks to svcHPOMiP;
+GRANT select ON sys.sysconfigures to svcHPOMiP;
+GRANT select ON sys.configurations to svcHPOMiP;
+GRANT select ON sys.databases to svcHPOMiP;
+GRANT select ON sys.sysdatabases to svcHPOMiP;
+GRANT select ON sys.sysfiles to svcHPOMiP;
+GRANT select ON sys.database_files to svcHPOMiP;
+GRANT select ON sys.sysindexes to svcHPOMiP;
+GRANT select ON sys.partitions to svcHPOMiP;
+GRANT select ON sys.allocation_units to svcHPOMiP;
+GRANT select ON sys.sysobjects to svcHPOMiP;
+GRANT select ON sys.sysdevices to svcHPOMiP;
+GRANT select ON sys.backup_devices to svcHPOMiP;
+GRANT execute ON sys.sp_monitor to svcHPOMiP;
+GRANT execute ON sys.xp_sqlagent_enum_jobs to svcHPOMiP;
+EXEC sp_configure 'show advanced option','1'
+GRANT VIEW SERVER STATE to svcHPOMiP;
+
+
+
+--MSDB
+use msdb
+go
+GRANT execute ON msdb.dbo.agent_datetime to svcHPOMiP;
+GRANT select ON msdb..sysjobs to svcHPOMiP;
+GRANT select ON msdb..sysjobhistory to svcHPOMiP;
+GRANT select ON msdb..sysjobsteps to svcHPOMiP;
+GRANT select ON msdb..sysjobschedules to svcHPOMiP;
+GRANT select ON msdb..sysjobs_view to svcHPOMiP;
+--GRANT select ON msdb..MSdistributiondbs to svcHPOMiP;
+GRANT select ON msdb..log_shipping_monitor_primary to svcHPOMiP;
+GRANT select ON msdb..log_shipping_primary_databases to svcHPOMiP;
+GRANT select ON msdb..log_shipping_monitor_error_detail to svcHPOMiP;
+GRANT select ON msdb..log_shipping_monitor_secondary to svcHPOMiP;
+GRANT select ON msdb..log_shipping_secondary to svcHPOMiP;
+GRANT select ON msdb..sysjobservers to svcHPOMiP;
+GRANT select ON msdb..sysjobactivity to svcHPOMiP;
+GRANT execute ON msdb..sp_help_job to svcHPOMiP;
+EXEC sp_dbmmonitorupdate
+EXEC sp_addrolemember 'dbm_monitor', 'svcHPOMiP'
+EXEC sp_addrolemember 'SQLAgentReaderRole','svcHPOMiP'
+
+
+--All databases
+--GRANT select on executionlog to svcHPOMiP;
+ALTER ROLE db_datareader ADD MEMBER svcHPOMiP;
+GRANT select ON MSmerge_agents to svcHPOMiP;
+GRANT select ON MSmerge_history to svcHPOMiP;
+GRANT select ON MSmerge_sessions to svcHPOMiP;
+GRANT select ON MSsnapshot_agents to svcHPOMiP;
+GRANT select ON MSlogreader_agents to svcHPOMiP;
+GRANT select ON MSdistribution_history to svcHPOMiP;
+GRANT select ON MSsnapshot_history to svcHPOMiP;
+GRANT select ON MSlogreader_history to svcHPOMiP;
+GRANT select ON MSdistribution_agents to svcHPOMiP;
+--EXEC sp_grantdbaccess 'svcHPOMiP','Kronos#2233'

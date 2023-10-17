@@ -1,0 +1,168 @@
+DECLARE @P_DATA_NEG DATETIME
+SET @P_DATA_NEG='2017-07-10 00:00:00.000'
+SELECT @P_DATA_NEG,
+                                   X.COD_NEG,
+                                   X.DATA_OFER,
+                                   X.NUM_SEQ_OFER,
+                                   X.NUM_GERA_OFER,
+                                   X.COD_NAT_ORDE,
+                                   X.NUM_SEQ_OFER_SECU,
+                                   X.COD_SEGM_TIPO_MERC,
+                                   X.COD_SEGM_NEG,
+                                   X.NUM_IDT_INME,
+                                   X.COD_EVEN_ORDE,
+                                   X.COD_USUA,
+                                   X.DATA_ETRA_EVEN_OFER,
+                                   X.DATA_EXP_OFER,
+                                   X.VAL_PREC,
+                                   X.COD_TIPO_ORDE,
+                                   X.VAL_PREC_DISPAR,
+                                   X.NUM_PRIO_OFER,
+                                   X.COD_IDT_ORDE_DIRT,
+                                   X.COD_TIPO_VALD,
+                                   X.QTE_EXIB,
+                                   X.QTE_MINI,
+                                   X.QTE_TOT_OFER,
+                                   X.QTE_DISP_NEG,
+                                   X.QTE_RESTA,
+                                   X.COD_IDT_SESSAO_FIX,
+                                   X.COD_OPDO,
+                                   X.COD_CLI,
+                                   X.COD_IDT_REF_CLI,
+                                   X.COD_EMSS_ORDE,
+                                   X.COD_COND_OFER,
+                                   X.COD_ESTD_ORDE,
+                                   X.NUM_SEQ_NEG,
+                                   X.QTE_NEG_ACUM,
+                                   X.QTE_NEG,
+                                   X.IND_OPRC_TERC,
+                                   X.IND_RSTR_ORDE,
+                                   X.COD_INME_BOLS,
+                                   X.COD_CLAS_MERC,
+                                   X.COD_SUBC_INME,
+                                   X.COD_PRDT,
+                                   X.COD_MRCA,
+                                   X.COD_ORIG_PRDT_NEG,
+                                   X.COD_SERI_INME,
+                                   X.FAT_COT,
+                                   X.COD_ESP_PAP,
+                                   X.COD_SESS_NEG,
+                                   X.COD_REF_INT_CLI,
+                                   X.COD_BOLS,
+                                   X.VAL_PREC_PROT,
+                                   X.IND_ATIV,
+                                   X.COD_MOTV_CANC,
+                                   'D-1'
+                             FROM (SELECT A.DATA_SESS,
+                                          A.COD_NEG,
+                                          A.DATA_OFER,
+                                          A.NUM_SEQ_OFER,
+                                          A.NUM_GERA_OFER,
+                                          A.COD_NAT_ORDE,
+                                          A.NUM_SEQ_OFER_SECU,
+                                          A.COD_SEGM_TIPO_MERC,
+                                          A.COD_SEGM_NEG,
+                                          A.NUM_IDT_INME,
+                                          A.COD_EVEN_ORDE,
+                                          A.COD_USUA,
+                                          A.DATA_ETRA_EVEN_OFER,
+                                          A.DATA_EXP_OFER,
+                                          A.VAL_PREC,
+                                          A.COD_TIPO_ORDE,
+                                          A.VAL_PREC_DISPAR,
+                                          A.NUM_PRIO_OFER,
+                                          A.COD_IDT_ORDE_DIRT,
+                                          A.COD_TIPO_VALD,
+                                          A.QTE_EXIB,
+                                          A.QTE_MINI,
+                                          A.QTE_TOT_OFER,
+                                          A.QTE_DISP_NEG,
+                                          A.QTE_RESTA,
+                                          A.COD_IDT_SESSAO_FIX,
+                                          A.COD_OPDO,
+                                          A.COD_CLI,
+                                          A.COD_IDT_REF_CLI,
+                                          A.COD_EMSS_ORDE,
+                                          A.COD_COND_OFER,
+                                          A.COD_ESTD_ORDE,
+                                          A.NUM_SEQ_NEG,
+                                          A.QTE_NEG_ACUM,
+                                          A.QTE_NEG,
+                                          A.IND_OPRC_TERC,
+                                          A.IND_RSTR_ORDE,
+                                          A.COD_INME_BOLS,
+                                          A.COD_CLAS_MERC,
+                                          A.COD_SUBC_INME,
+                                          A.COD_PRDT,
+                                          A.COD_MRCA,
+                                          A.COD_ORIG_PRDT_NEG,
+                                          A.COD_SERI_INME,
+                                          A.FAT_COT,
+                                          A.COD_ESP_PAP,
+                                          A.COD_SESS_NEG,
+                                          A.COD_REF_INT_CLI,
+                                          A.COD_BOLS,
+                                          A.VAL_PREC_PROT,
+                                          A.IND_ATIV,
+                                          A.COD_MOTV_CANC
+                                     FROM DBO.FGMCOFER_BVMF AS A WITH (NOLOCK)
+                                    WHERE A.DATA_SESS = (SELECT MAX(B.DATA_SESS)
+                                                           FROM DBO.FGMCOFER_BVMF AS B WITH (NOLOCK)
+                                                          WHERE B.DATA_SESS    <  @P_DATA_NEG
+                                                            AND B.COD_SEGM_NEG <> 'C')
+                                                                -- COD_TIPO_VALD 1=GTC 6=GTD
+                                                                -- COD_ESTD_ORDE 2=FILLED 4=CANCELED 8=REJECTED C=EXPIRED
+                                                            AND (A.COD_TIPO_VALD = '1' OR (A.COD_TIPO_VALD = '6' AND ISNULL(A.DATA_EXP_OFER, '9999-12-31') >= @P_DATA_NEG))
+                                                            AND NOT EXISTS (SELECT 1
+                                                                              FROM DBO.FGMCOFER_BVMF B WITH(NOLOCK)
+                                                                             WHERE B.DATA_SESS = A.DATA_SESS
+                                                                               AND B.COD_NEG = A.COD_NEG
+                                                                               AND B.NUM_SEQ_OFER = A.NUM_SEQ_OFER
+                                                                               AND B.COD_ESTD_ORDE IN ('2', '4', '8', 'C'))) AS X
+                            WHERE X.DATA_OFER = (SELECT MAX(C.DATA_OFER)
+                                                   FROM DBO.FGMCOFER_BVMF C
+                                                  WHERE C.DATA_SESS = X.DATA_SESS
+                                                    AND C.COD_NEG = X.COD_NEG
+                                                    AND C.NUM_SEQ_OFER = X.NUM_SEQ_OFER
+                                                    AND C.COD_EVEN_ORDE IN ('0', '5')) -- 0-NEW 4-CANCEL 5-UPDATE
+
+
+
+--SQLSERVER
+SELECT 'GuardAppEvent:Start',
+'GuardAppEventType:INC000001564856 ',
+'GuardAppEventStrValue:INC000001564856 ';
+
+SET STATISTICS IO, TIME ON
+
+SELECT * FROM (
+SELECT * FROM DBO.FGMCOFER_BVMF AS A WITH (NOLOCK)
+    WHERE A.DATA_SESS = (
+SELECT MAX(B.DATA_SESS)
+        FROM DBO.FGMCOFER_BVMF AS B WITH (NOLOCK)
+        WHERE B.DATA_SESS    <  '2017-07-10 00:00:00.000'
+        AND B.COD_SEGM_NEG in ('A','B'))
+        AND (A.COD_TIPO_VALD = '1' OR (A.COD_TIPO_VALD = '6' AND 
+        ISNULL(A.DATA_EXP_OFER, '9999-12-31') >= '2017-07-10 00:00:00.000'))
+        AND NOT EXISTS (
+SELECT 1
+            FROM DBO.FGMCOFER_BVMF B WITH(NOLOCK)
+            WHERE B.DATA_SESS = A.DATA_SESS
+            AND B.COD_NEG = A.COD_NEG
+            AND B.NUM_SEQ_OFER = A.NUM_SEQ_OFER
+            AND B.COD_ESTD_ORDE IN ('2', '4', '8', 'C'))) AS X
+WHERE X.DATA_OFER = 
+(SELECT MAX(C.DATA_OFER)
+    FROM DBO.FGMCOFER_BVMF C WITH(NOLOCK)
+    WHERE C.DATA_SESS = X.DATA_SESS
+    --AND C.COD_NEG <> 'NATU3'  --<--Retorna os dados
+    AND C.COD_NEG = 'NATU3'  --<--Não retorna todos os dados (trava)
+    AND C.COD_NEG = X.COD_NEG
+    AND C.NUM_SEQ_OFER = X.NUM_SEQ_OFER
+    AND C.COD_EVEN_ORDE IN ('0', '5'))
+option(recompile)
+ GO
+
+SET STATISTICS IO, TIME ON
+
+SELECT 'GuardAppEvent:Released';

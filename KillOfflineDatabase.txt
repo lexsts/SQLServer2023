@@ -1,0 +1,22 @@
+USE master;
+
+DECLARE @kill varchar(8000); 
+SET @kill = '';  
+SELECT @kill = @kill + 'kill ' + CONVERT(varchar(5), spid) + ';'  
+FROM master..sysprocesses  
+WHERE dbid = db_id('WSS_Content_DocCorp')
+
+EXEC(@kill); 
+GO
+--ALTER DATABASE [LIQUIDACAO_FISICA] SET  OFFLINE
+
+--ALTER DATABASE WSS_Content_DocCorp SET  READ_WRITE WITH NO_WAIT
+
+
+DECLARE @kill varchar(8000); 
+SET @kill = '';  
+SELECT @kill = @kill + 'kill ' + CONVERT(varchar(5), session_id) + ';'  
+from sys.dm_exec_sessions where login_name='_svcSVIJDVP'
+
+EXEC(@kill); 
+GO

@@ -1,0 +1,75 @@
+--1 Verifica todas as colunas procurando por uma string
+SELECT 'SELECT CAST(COUNT(1) AS VARCHAR) + '' ' + TABLE_NAME + 
+''' FROM ' + TABLE_NAME + ' WITH (NOLOCK) WHERE ' + COLUMN_NAME + 
+' LIKE ''%SCRIPT%'' --string procurada
+AND DT_REQUISICAO BETWEEN ''2015-09-14 03:36:46.000''  AND ''2015-09-18 03:36:46.000'';' 
+FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME IN ('titulo_alteracao')
+
+
+--2 Verifica todas as colunas procurando por uma string
+declare 
+	@name varchar(800),
+	@id int,
+	@coluna varchar(800),
+	@cmd varchar(800), 
+	@string_busca varchar(800)
+
+	set @string_busca = 'script' -- Digite o texto a ser procurado aqui
+
+declare 
+	teste cursor
+for 
+	select name, id from sysobjects where type = 'u' order by 1
+
+open 
+	teste
+
+fetch next from teste into @name, @id
+
+while @@fetch_status = 0
+begin
+
+	print '*' + @name
+	
+	declare colunas cursor
+	for 
+		select a.name 
+		from syscolumns a 
+		inner join systypes b
+		on a.id = @id
+		and a.xtype = b.xtype
+		and b.name in ('char', 'nchar', 'ntext', 'nvarchar', 'sql_variant',	'sysname', 'text', 'varchar') --seleciona apenas colunas do tipo texto
+	
+	open colunas
+	
+	fetch next from colunas into @coluna
+	
+
+	while @@fetch_status = 0
+	begin
+	
+		print '--------------------->' + @coluna
+	
+		set @cmd = 'if exists(select 1 from ' + @name + ' where ' + @coluna + ' like ''%' + @string_busca + '%'') begin print ''' + @name + '''' + ' print ''' + @coluna + '''' + ' select * from ' + @name + ' where ' + @coluna + ' like ''%' + @string_busca + '%'' end'
+		
+		print @cmd
+		
+		--exec (@cmd)
+				
+		fetch next from colunas into @coluna
+			
+	end
+	
+	close colunas
+	deallocate colunas
+
+	fetch next from teste into @name, @id
+
+end
+
+close teste
+deallocate teste
+
+
+
+

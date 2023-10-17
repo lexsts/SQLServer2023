@@ -1,0 +1,11 @@
+select  'GuardAppEvent:Start'
+,'GuardAppEventType:METADADO'
+,'GuardAppEventStrValue:METADADO';
+
+while (1=1)
+begin
+select getdate()
+exec [SPACO_CONS_ALOC_RETORNO_SOLI] 1 
+select getdate()
+select	'GuardAppEvent:Released';
+end

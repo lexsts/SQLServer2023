@@ -1,0 +1,24 @@
+use NCS
+SELECT * FROM SYS.OBJECTS WHERE NAME='TNCSPARM_SIST_174561CRQ174561_RETER5'
+SELECT * FROM SYS.SCHEMAS WHERE SCHEMA_ID=30
+ALTER SCHEMA DBO TRANSFER [CORPORATE\auangsilva].TNCSPARM_SIST_174561CRQ174561_RETER5
+GO
+
+
+
+select 'ALTER SCHEMA DBO TRANSFER ['+ b.name+'].'+a.name,*
+from sys.objects a 
+inner join sys.schemas b
+on a.schema_id=b.schema_id
+where a.schema_id ='CORPORATE\alexsantos'
+order by modify_date desc 
+
+
+
+
+select 'GRANT EXECUTE ON ['+ b.name+'].'+a.name+ ' TO ROLE_PROCEDURE',*
+from sys.objects a 
+inner join sys.schemas b
+on a.schema_id=b.schema_id
+WHERE A.TYPE = 'P'
+order by modify_date desc 

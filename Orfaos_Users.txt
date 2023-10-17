@@ -1,0 +1,5 @@
+--Associa o login com o usuário (ORFAOS)
+sp_msforeachdb '
+use ?;
+SELECT ''use ?; alter user ['' + name + ''] with login = ['' + name + ''];'' FROM SYS.DATABASE_PRINCIPALS where type in (''S'',''U'') AND PRINCIPAL_ID>4'
+

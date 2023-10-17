@@ -1,0 +1,26 @@
+USE [SI_DW]
+GO
+
+/****** Object:  Index [PK_TDWGPS_INDICADOR_ECONOMICO]    Script Date: 5/8/2018 9:16:24 PM ******/
+--Apaga a PK
+ALTER TABLE [hst].[TDWGPS_INDICADOR_ECONOMICO] DROP CONSTRAINT [PK_TDWGPS_INDICADOR_ECONOMICO]
+GO
+--Renomea a tabela atual para um outro nome
+EXEC sp_rename 'hst.TDWGPS_INDICADOR_ECONOMICO', 'TDWGPS_INDICADOR_ECONOMICO_INC1711323_BKP'; 
+GO
+--Renomea a tabela bkp para o nome correto
+EXEC sp_rename 'dbo.TDWGPS_INDICADOR_ECONOMICO_INC1711323', 'TDWGPS_INDICADOR_ECONOMICO'; 
+GO
+--Corrige o schema da tabela
+ALTER SCHEMA hst TRANSFER [dbo].TDWGPS_INDICADOR_ECONOMICO
+go
+--Cria a PK
+ALTER TABLE [hst].[TDWGPS_INDICADOR_ECONOMICO] ADD  CONSTRAINT [PK_TDWGPS_INDICADOR_ECONOMICO] PRIMARY KEY CLUSTERED 
+(
+	[data_referencia_indicador_economico] ASC,
+	[cod_instrumento] ASC,
+	[cod_origem_identificacao_instrumento] ASC,
+	[cod_bolsa_valor] ASC,
+	[cod_situacao_indicador_economico] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, SORT_IN_TEMPDB = OFF, IGNORE_DUP_KEY = OFF, ONLINE = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, FILLFACTOR = 95) ON [PRIMARY]
+GO

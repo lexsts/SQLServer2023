@@ -1,0 +1,22 @@
+I just had this same problem. 4 statements in SSMS instead of using the GUI and it was very fast.
+
+•Make a new column
+
+alter table users add newusernum int;
+
+
+•Copy values over
+
+update users set newusernum=usernum;
+
+
+•Drop the old column
+
+alter table users drop column usernum;
+
+
+•Rename the new column to the old column name
+
+EXEC sp_RENAME 'users.newusernum' , 'usernum', 'COLUMN';
+
+ 

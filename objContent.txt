@@ -1,0 +1,25 @@
+
+
+--Check content procedures on SQL2005
+SELECT DEFINITION FROM SYS.SQL_MODULES WHERE DEFINITION LIKE '%BDCADASTRO_RIO%'
+
+
+--Check content procedures on SQL2000
+SELECT ROUTINE_NAME, ROUTINE_DEFINITION 
+    FROM INFORMATION_SCHEMA.ROUTINES 
+    WHERE ROUTINE_DEFINITION LIKE '%BDCADASTRO_RIO%' 
+    AND ROUTINE_TYPE='PROCEDURE'
+
+
+
+--Check content objects on SQL2000
+SELECT     
+    DB_NAME() AS DataBaseName,                  
+    dbo.SysObjects.Name AS TriggerName,
+    dbo.sysComments.Text AS SqlContent
+FROM 
+    dbo.SysObjects INNER JOIN 
+        dbo.sysComments ON 
+        dbo.SysObjects.ID = dbo.sysComments.ID
+WHERE   
+    dbo.sysComments.Text like '%BDCADASTRO%'

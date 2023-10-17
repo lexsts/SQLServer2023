@@ -1,0 +1,64 @@
+sqlcmd -S GERCOR0603P,1433 -U GestaoAmbienteSQL -Q "SET NOCOUNT ON; SET ANSI_WARNINGS OFF;SELECT 'sqlcmd -S ' + LTRIM(RTRIM(INSTANCE_NAME)) + ' -U GestaoAmbienteSQL -Q""SET NOCOUNT ON; SET ANSI_WARNINGS OFF;SELECT ''insert into ADM_BDADOS.[dbo].TB_DBCC_HISTORY_ALL values (''''''+cast(SERVERPROPERTY(''ServerName'') as varchar)+'''''',''''''+DB_NAME(SDB.dbid)+'''''',''''''+ISNULL(replace(TDH.MessageText,'''''''',''''),''CHECKDB not performed.'')+'''''',''''''+ISNULL(cast(TDH.RepairLevel as varchar),''None'')+'''''',''''''+ISNULL(cast(MAX(TDH.TimeStamp) as varchar),''Jan  1 2016  0:00AM'')+'''''')'' FROM ADM_BDADOS.[dbo].TB_DBCC_HISTORY TDH RIGHT JOIN master.dbo.sysdatabases SDB ON SDB.dbid=TDH.DbId WHERE ISNULL(TDH.Error,8989)=8989 AND SDB.dbid NOT IN (1,2,3,4) GROUP BY SDB.dbid,MessageText,RepairLevel ORDER BY TDH.MessageText"" -W -h -1 -P rDBUNX5T' FROM ADM_DASHBOARD.ctrl.ListConnect where nao_atualizar=0 and idproduct=2 and Instance_Name not in ('APSCOR1201P\MACPESSIMISTA,1433','BMFSV9543CTPP\DEFAULT,1433','SQLSCCMAP\SQLSCCMAP,1435','SQLCORPGP\SQLCORPGP,1436','BMFSV9544CTPP,1433')" -P rDBUNX5T -o C:\Tmp\geraJOBCheckDB.cmd -W -h -1
+                                                                                                                                                                                                                                                                                                                                                                                            replace(MessageText,' '' ','') 
+                                       
+
+--Falha encontrada na última execução
+SELECT rank() OVER (ORDER BY TB.InstanceName,TB.DBName) N, TB.* FROM (
+SELECT * FROM ADM_BDADOS.dbo.TB_DBCC_HISTORY_ALL
+WHERE MessageText not like '%found 0 allocation errors and 0 consistency errors%'
+AND MessageText not like 'CHECKDB not performed%') TB
+
+
+--Não executado com sucesso na última janela
+SELECT rank() OVER (ORDER BY TB.InstanceName,TB.DBName) N, TB.* FROM (
+SELECT * FROM ADM_BDADOS.dbo.TB_DBCC_HISTORY_ALL 
+WHERE ISNULL(TIMESTAMP,GETDATE()) < DATEADD(wk,DATEDIFF(wk,7,GETDATE()),5) 
+UNION
+SELECT * FROM ADM_BDADOS.dbo.TB_DBCC_HISTORY_ALL 
+WHERE MessageText='CHECKDB not performed.') TB
+
+
+--Executado com sucesso
+SELECT rank() OVER (ORDER BY TB.InstanceName,TB.DBName) N, TB.* FROM (
+SELECT * FROM ADM_BDADOS.dbo.TB_DBCC_HISTORY_ALL 
+WHERE ISNULL(TIMESTAMP,GETDATE()) > DATEADD(wk,DATEDIFF(wk,7,GETDATE()),5) 
+AND MessageText not like 'CHECKDB not performed%') TB
+
+
+
+
+
+
+--Troubleshoting
+
+
+SELECT cast(SERVERPROPERTY('ServerName') as varchar),DB_NAME(SDB.dbid),ISNULL(replace(TDH.MessageText,'''',''),'CHECKDB not performed.'),
+ISNULL(cast(TDH.RepairLevel as varchar),'None'),ISNULL(cast(MAX(TDH.TimeStamp) as varchar),'Jan  1 2016  0:00AM')
+FROM ADM_BDADOS.[dbo].TB_DBCC_HISTORY TDH RIGHT JOIN master.dbo.sysdatabases SDB ON SDB.dbid=TDH.DbId 
+WHERE ISNULL(TDH.Error,8989)=8989 AND SDB.dbid NOT IN (1,2,3,4) 
+AND TDH.TimeStamp >= GETDATE()-1
+GROUP BY SDB.dbid,MessageText,RepairLevel
+
+
+SELECT TOP 1 name FROM master.sys.databases WHERE name not in (
+SELECT DB_NAME(SDB.dbid)
+FROM ADM_BDADOS.[dbo].TB_DBCC_HISTORY TDH RIGHT JOIN master.dbo.sysdatabases SDB ON SDB.dbid=TDH.DbId 
+WHERE ISNULL(TDH.Error,8989)=8989 
+GROUP BY SDB.dbid
+HAVING MAX(TDH.TimeStamp) >= GETDATE()-1)
+AND database_id NOT IN (1,2,3,4)
+AND state_desc = 'ONLINE'
+
+
+
+SELECT count(1) FROM master.sys.databases WHERE name not in (
+SELECT DB_NAME(SDB.dbid)
+FROM ADM_BDADOS.[dbo].TB_DBCC_HISTORY TDH RIGHT JOIN master.dbo.sysdatabases SDB ON SDB.dbid=TDH.DbId 
+WHERE ISNULL(TDH.Error,8989)=8989 
+GROUP BY SDB.dbid
+HAVING MAX(TDH.TimeStamp) >= GETDATE()-1)
+AND database_id NOT IN (1,2,3,4)
+AND state_desc = 'ONLINE'
+
+
+

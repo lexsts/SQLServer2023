@@ -1,0 +1,17 @@
+C:\Program Files\Microsoft SQL Server\90\Setup Bootstrap\LOG\Hotfix 
+
+D:\ProcessExplorer\procexp.exe 
+
+cd /d F:\MSSQLSERVER_ENTERPRISE64\900\SP4 
+
+
+
+installsrv /i:MSSQLSERVER 
+installsrv /i:FUNCAO 
+installsrv /iGI 
+installsrv /iGI_PRE_PROD 
+installsrv /iQLTGP
+
+
+installsrv /i:BDS
+installsrv /i:CHIP

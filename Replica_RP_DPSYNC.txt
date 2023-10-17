@@ -1,0 +1,14 @@
+Instância: BMFIN0044\CORP01P
+Banco: RP_DPSYNC
+SELECT Count( * ) FROM TB_Alteracao_BMA WHERE ch_flg_exec = 'N'
+SELECT Count( * ) FROM TB_Alteracao_BOV WHERE ch_flg_exec = 'N'
+SELECT Count( * ) FROM TB_Alteracao_CRD WHERE ch_flg_exec = 'N'
+SELECT Count ( * ) FROM TB_Alteracao_BMC WHERE ch_flg_exec = 'N'
+SELECT Count( * ) FROM TB_Alteracao_SRI WHERE ch_flg_exec = 'N'
+
+
+/*
+Se o resultado da coluna dc_val_status estiver igual a 10 indica que o arquivo foi processado e se estiver igual a 0 indica que não foi processada.
+Tendo o valor zero na coluna dc_val_status pode observar que o valor da coluna dc_seq_reg também estará com o valor 0.
+Isso indica que o arquivo está na fila e pendente de processamento. SELECT * FROM TB_FILA_PROCESSAMENTO ORDER BY DT_DAT_INS DESC
+*/

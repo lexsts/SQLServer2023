@@ -1,0 +1,11 @@
+SELECT CAST( SERVERPROPERTY('InstanceName') AS NVARCHAR(128)) AS 'InstanceName'
+SELECT CAST( SERVERPROPERTY('IsClustered') AS NVARCHAR(128)) AS 'IsClustered'
+SELECT CAST( SERVERPROPERTY('MachineName') AS NVARCHAR(128)) AS 'MachineName'
+SELECT CAST( SERVERPROPERTY('ServerName')AS NVARCHAR(128)) AS 'ServerName'
+SELECT CAST( SERVERPROPERTY('ComputerNamePhysicalNetBIOS')AS NVARCHAR(128)) AS 'ComputerNamePhysicalNetBIOS'
+
+SELECT SERVERPROPERTY('ComputerNamePhysicalNetBIOS') AS [CurrentNodeName] 
+SELECT * FROM sys.dm_os_cluster_nodes 
+SELECT * FROM fn_virtualservernodes()
+SELECT * FROM fn_servershareddrives()
+SELECT * FROM sys.dm_io_cluster_shared_drives

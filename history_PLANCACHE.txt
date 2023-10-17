@@ -1,0 +1,6 @@
+SELECT * FROM ADM_BDADOS.dbo.TB_PROCESS_DETAIL
+WHERE 1=1
+--AND database_name = 'SI_DW'
+AND collection_time >= '2021-07-12 06:10:00.000'
+AND collection_time <= '2021-07-12 06:11:00.000'
+ORDER BY [dd hh:mm:ss.mss] DESC

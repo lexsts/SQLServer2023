@@ -1,0 +1,763 @@
+/*
+declare @P_MSG_RET varchar(max)
+declare @P_COD_RET int
+
+exec procedure @P_MSG_RET @P_COD_RET
+select @P_MSG_RET,@P_COD_RET
+
+
+
+OU
+
+declare @P_MSG_RET varchar(800)
+declare @P_COD_RET int
+EXEC SPOP_IN_EXTRATOR @P_MSG_RET output, @P_COD_RET output
+
+*/
+
+
+
+BEGIN TRAN
+
+DECLARE @dt_proc datetime
+SET @dt_proc  = '2015-07-01'
+
+Declare @val_indicador_economico decimal(28,20),
+		-- Variaveis de controle
+		@ErrorMessage NVARCHAR(4000), 
+		@ErrorNumber INT, 
+		@ErrorSeverity INT, 
+		@ErrorState INT, 
+		@ErrorLine INT		
+Begin Try
+
+	---------------------------------------------------------------------------------------------------------------------------------------------------
+	--CAB_CONTRATOS_ABERTOS- no dia, por MC, Neg e comitente--********************************************************************
+	create table #tmp_cab (
+		CAB_DT datetime NULL,
+		CAB_CD_CONTRATO decimal(6, 0) NULL,
+		CAB_IB_BOLSA bit NULL,
+		CAB_IB_CCP bit NULL,
+		CAB_IB_DIFERIDO bit NULL,
+		CAB_CD_COMPENSACAO tinyint NULL,
+		CAB_IB_ENTREGA_FISICA bit NULL,
+		CAB_CD_NATUREZA_OPERACAO tinyint NULL,
+		MCS_CD_MC decimal(6, 0) NULL,
+		NEG_CD_NEG decimal(6, 0) NULL,
+		COM_CD_COMITENTE bigint NULL,
+		CAB_QT_CONTRATOS bigint NULL,
+		CAB_VL_NOCIONAL decimal(18, 2) NULL,
+		FLG_CTA_ERRO bit NULL
+	)
+
+
+		select @val_indicador_economico = GPS.val_indicador_economico 
+				from SI_DW.hst.TDWGPS_INDICADOR_ECONOMICO GPS
+				 join SI_DW.hst.TDWTS_INSTRUMENTO_ALTERNADO  instalt 
+					on  GPS.cod_instrumento = instalt.cod_instrumento 
+					and GPS.cod_origem_identificacao_instrumento = instalt.cod_origem_identificacao_instrumento
+					and GPS.cod_bolsa_valor = instalt.cod_bolsa_valor
+					and GPS.data_referencia_indicador_economico>=instalt.data_inicio_vigencia_historico and (GPS.data_referencia_indicador_economico < instalt.data_fim_vigencia_historico or instalt.data_fim_vigencia_historico is null)
+				 join SI_DW.hst.TDWTS_INSTRUMENTO instgps 
+					on instgps.num_sequencial_instrumento = instalt.num_sequencial_instrumento 
+					and GPS.data_referencia_indicador_economico>=instgps.data_inicio_vigencia_historico and (GPS.data_referencia_indicador_economico < instgps.data_fim_vigencia_historico or instgps.data_fim_vigencia_historico is null)			     
+					and  instgps.cod_negociacao = 'RTDOLD1'
+		where GPS.data_referencia_indicador_economico = @dt_proc
+
+		if isnull(@val_indicador_economico,0) = 0 
+		begin
+			RAISERROR ('Inconsistência: O indicador (RTDOLD1) do GPS para o calculo de volume, retornou zero .', -- Message text.
+					   16, -- Severity.
+					   1 -- State.
+					   );
+		end
+
+	---------------------------------------------------------------------------------------------------------------------------------------------
+	--VENDA  - Dados Fungiveis
+	INSERT INTO #tmp_cab (CAB_DT,CAB_CD_CONTRATO,CAB_IB_BOLSA,CAB_IB_CCP,CAB_IB_DIFERIDO,CAB_CD_COMPENSACAO,CAB_IB_ENTREGA_FISICA,CAB_CD_NATUREZA_OPERACAO,MCS_CD_MC,NEG_CD_NEG,COM_CD_COMITENTE,CAB_QT_CONTRATOS,CAB_VL_NOCIONAL,FLG_CTA_ERRO)
+	select  
+		CAB_DT				= Pos_Der_Fun.data_posicao,
+		CAB_CD_CONTRATO		= CBC.num_tipo_grupo_contrato_derivativo, --Código Contrato
+		CAB_IB_BOLSA		= 1,--Negociado em Bolsa
+		CAB_IB_CCP			= 1,--COM CCP
+		CAB_IB_DIFERIDO		= 1,--Liquidação Diferida							
+		CAB_CD_COMPENSACAO	= 3,--Compensação MULTIlateral
+		CAB_IB_ENTREGA_FISICA = CASE WHEN inst_d.cod_tipo_entrega_instrumento=1 THEN 1 ELSE 0 END, --COM Entrega = 1 / SEM Entrega = 0 
+		CAB_CD_NATUREZA_OPERACAO= '0', --1= Compra / 0= Venda
+		MCS_CD_MC			= Pos_Der_Fun.cod_membro_compensacao,
+		NEG_CD_NEG			= Pos_Der_Fun.cod_participante,
+		COM_CD_COMITENTE	= BCB.FN_CRIPTOGRAFAR_INVESTIDOR (CASE WHEN ISNULL(c.num_documento_identificacao_cvm_final,'') <> '' 
+																	THEN c.num_documento_identificacao_cvm_final 
+																	ELSE c.num_documento_identificacao_final end),
+		CAB_QT_CONTRATOS	= isnull(Pos_Der_Fun.qte_posicao_vendida_atual,0), --qte_posicao_atual
+		CAB_VL_NOCIONAL		= case when Pos_Der_Fun.cod_modalidade_negociacao in (3,4) 
+									then case when Pos_Der_Fun.cod_mercadoria = 'D11'
+												--PONTO DO CONTRATO * CONTRATOS EM ABERTO * ( 100000 / ( ( 1 + ( EXERCÍCIO/100 ) ) ^ ( 63/252) ) ) 
+												then Pos_Der_Fun.tam_lote_padrao_alocacao*Pos_Der_Fun.qte_posicao_vendida_atual*(100000.0/power(1.0+(Pos_Der_Fun.val_exercicio_opcao/100.0),63.0/252.0))   
+												--PONTO DO CONTRATO * CONTRATOS EM ABERTO * ( 100000 / ( ( 1 + ( EXERCÍCIO/100 ) ) ^ ( 126/252) ) ) 
+												when Pos_Der_Fun.cod_mercadoria = 'D12'
+												then Pos_Der_Fun.tam_lote_padrao_alocacao*Pos_Der_Fun.qte_posicao_vendida_atual*(100000.0/power(1.0+(Pos_Der_Fun.val_exercicio_opcao/100.0),126/252.0))   
+												--PONTO DO CONTRATO * CONTRATOS EM ABERTO * ( 100000 / ( ( 1 + ( EXERCÍCIO/100 ) ) ^ ( 252/252) ) ) 
+												when Pos_Der_Fun.cod_mercadoria = 'D13'
+												then Pos_Der_Fun.tam_lote_padrao_alocacao*Pos_Der_Fun.qte_posicao_vendida_atual*(100000.0/power(1.0+(Pos_Der_Fun.val_exercicio_opcao/100.0),252/252.0))
+												--PONTO DO CONTRATO * Indicador * CONTRATOS EM ABERTO * EXERCÍCIO 
+												when Pos_Der_Fun.cod_mercadoria in ('ICF','SFI')
+												then Pos_Der_Fun.tam_lote_padrao_alocacao*@val_indicador_economico*Pos_Der_Fun.qte_posicao_vendida_atual*Pos_Der_Fun.val_exercicio_opcao 
+												--PONTO DO CONTRATO * CONTRATOS EM ABERTO * EXERCÍCIO 
+												else Pos_Der_Fun.tam_lote_padrao_alocacao*Pos_Der_Fun.qte_posicao_vendida_atual*Pos_Der_Fun.val_exercicio_opcao 
+										 end 
+									else cast(abs(isnull(ROUND(Pos_Der_Fun.val_volume_posicao_vendida_real,2,1),0))	as decimal(17,2)) 
+							  end, --val_volume_posicao_atual
+		FLG_CTA_ERRO		= CASE WHEN c.num_sequencial_tipo_conta in (3,11) THEN 1 ELSE 0 END  --Indica se é Conta Erro
+
+		from SI_DW.DW.TDWPOSICAO_DERIVATIVO_FUNGIVEL Pos_Der_Fun
+	
+		left join SI_DW.DW.TDWCONTA c
+		  on Pos_Der_Fun.cod_participante           = c.cod_operacional_participante
+		 and Pos_Der_Fun.cod_categoria_participante = c.cod_categoria 
+		 and Pos_Der_Fun.num_conta_investidor		  = c.num_identificacao_conta
+		 and Pos_Der_Fun.data_referencia			  >= c.data_inicio_vigencia 
+		 and Pos_Der_Fun.data_referencia            < isnull(c.data_fim_vigencia,'2076-12-31')	
+		
+		inner join si_dw.hst.TDWTS_INSTRUMENTO_ALTERNADO inst_a
+			on Pos_Der_Fun.cod_instrumento = inst_a.cod_instrumento
+			and Pos_Der_Fun.cod_origem_identificacao_instrumento = inst_a.cod_origem_identificacao_instrumento
+			and Pos_Der_Fun.cod_bolsa_valor = inst_a.cod_bolsa_valor
+			and Pos_Der_Fun.data_referencia >= inst_a.data_inicio_vigencia_historico 
+			and Pos_Der_Fun.data_referencia < isnull(inst_a.data_fim_vigencia_historico, '20790101')
+		
+		inner join si_dw.hst.TDWTS_INSTRUMENTO inst
+			on inst_a.num_sequencial_instrumento = inst.num_sequencial_instrumento
+			and Pos_Der_Fun.data_referencia >= inst.data_inicio_vigencia_historico 
+			and Pos_Der_Fun.data_referencia < isnull(inst.data_fim_vigencia_historico, '20790101')
+
+		left outer join si_dw.hst.TDWTS_INSTRUMENTO_DERIVATIVO inst_d
+			on inst_a.num_sequencial_instrumento = inst_d.num_sequencial_instrumento
+			and Pos_Der_Fun.data_referencia >= inst_d.data_inicio_vigencia_historico 
+			and Pos_Der_Fun.data_referencia < isnull(inst_d.data_fim_vigencia_historico, '20790101')
+		
+		left outer join si_dw.hst.TDWTS_INSTRUMENTO_OPCAO_DERIVATIVO inst_opc
+			on inst_a.num_sequencial_instrumento = inst_opc.num_sequencial_instrumento
+			and Pos_Der_Fun.data_referencia >= inst_opc.data_inicio_vigencia_historico 
+			and Pos_Der_Fun.data_referencia < isnull(inst_opc.data_fim_vigencia_historico, '20790101')              
+		
+		inner join SI_DW.hst.TDWTS_MODALIDADE_NEGOCIACAO_PERMITIDA inst_mod
+			on inst.cod_modalidade_negociacao_permitida = inst_mod.cod_modalidade_negociacao_permitida 
+			and Pos_Der_Fun.data_referencia >= inst_mod.data_inicio_vigencia_historico 
+			and Pos_Der_Fun.data_referencia < isnull(inst_mod.data_fim_vigencia_historico, '20790101')
+			and inst_mod.cod_mercadoria not in ('SCC','SCS')
+		left join (select distinct cod_mercadoria,cod_tipo_mercado,ind_exercicio_opcao,cod_tipo_opcao,num_tipo_grupo_contrato_derivativo=MIN(num_tipo_grupo_contrato_derivativo) 
+						from bcb.TSINTIPO_GRUPO_CONTRATO_DERIVATIVO_BACEN group by cod_mercadoria,cod_tipo_mercado,ind_exercicio_opcao,cod_tipo_opcao) CBC on --CONTRATO BACEN
+						cbc.cod_mercadoria			= inst_mod.cod_mercadoria	
+					and cbc.cod_tipo_mercado		= inst_mod.cod_modalidade_negociacao
+					and cbc.ind_exercicio_opcao		= '0'
+					and  ISNULL(NULLIF(cbc.cod_tipo_opcao, ''),'N') 	= ISNULL(NULLIF(inst_opc.cod_tipo_opcao, ''),'N') 
+				
+	where 
+		Pos_Der_Fun.data_referencia = @dt_proc
+		and Pos_Der_Fun.data_referencia = Pos_Der_Fun.data_posicao
+		and ISNULL(Pos_Der_Fun.qte_posicao_vendida_atual,0) > 0
+
+	---------------------------------------------------------------------------------------------------------------------------------------------
+	--COMPRA - Dados Fungiveis
+	INSERT INTO #tmp_cab (CAB_DT,CAB_CD_CONTRATO,CAB_IB_BOLSA,CAB_IB_CCP,CAB_IB_DIFERIDO,CAB_CD_COMPENSACAO,CAB_IB_ENTREGA_FISICA,CAB_CD_NATUREZA_OPERACAO,MCS_CD_MC,NEG_CD_NEG,COM_CD_COMITENTE,CAB_QT_CONTRATOS,CAB_VL_NOCIONAL,FLG_CTA_ERRO)
+	select  
+		CAB_DT				= Pos_Der_Fun.data_posicao,
+		CAB_CD_CONTRATO		= CBC.num_tipo_grupo_contrato_derivativo, --Código Contrato
+		CAB_IB_BOLSA		= 1,--Negociado em Bolsa
+		CAB_IB_CCP			= 1,--COM CCP
+		CAB_IB_DIFERIDO		= 1,--Liquidação Diferida							
+		CAB_CD_COMPENSACAO	= 3,--Compensação MULTIlateral
+		CAB_IB_ENTREGA_FISICA = CASE WHEN inst_d.cod_tipo_entrega_instrumento=1 THEN 1 ELSE 0 END, --COM Entrega = 1 / SEM Entrega = 0 
+		CAB_CD_NATUREZA_OPERACAO= '1', --1= Compra / 0= Venda
+		MCS_CD_MC			= Pos_Der_Fun.cod_membro_compensacao,
+		NEG_CD_NEG			= Pos_Der_Fun.cod_participante,
+		COM_CD_COMITENTE	= BCB.FN_CRIPTOGRAFAR_INVESTIDOR (CASE WHEN ISNULL(c.num_documento_identificacao_cvm_final,'') <> '' 
+																	THEN c.num_documento_identificacao_cvm_final 
+																	ELSE c.num_documento_identificacao_final end),
+		CAB_QT_CONTRATOS	= isnull(Pos_Der_Fun.qte_posicao_comprada_atual,0), --qte_posicao_atual
+		CAB_VL_NOCIONAL		= case when Pos_Der_Fun.cod_modalidade_negociacao in (3,4) 
+									then case when Pos_Der_Fun.cod_mercadoria = 'D11'
+												--PONTO DO CONTRATO * CONTRATOS EM ABERTO * ( 100000 / ( ( 1 + ( EXERCÍCIO/100 ) ) ^ ( 63/252) ) ) 
+												then Pos_Der_Fun.tam_lote_padrao_alocacao*Pos_Der_Fun.qte_posicao_comprada_atual*(100000.0/power(1.0+(Pos_Der_Fun.val_exercicio_opcao/100.0),63.0/252.0))   
+												--PONTO DO CONTRATO * CONTRATOS EM ABERTO * ( 100000 / ( ( 1 + ( EXERCÍCIO/100 ) ) ^ ( 126/252) ) ) 
+												when Pos_Der_Fun.cod_mercadoria = 'D12'
+												then Pos_Der_Fun.tam_lote_padrao_alocacao*Pos_Der_Fun.qte_posicao_comprada_atual*(100000.0/power(1.0+(Pos_Der_Fun.val_exercicio_opcao/100.0),126/252.0))   
+												--PONTO DO CONTRATO * CONTRATOS EM ABERTO * ( 100000 / ( ( 1 + ( EXERCÍCIO/100 ) ) ^ ( 252/252) ) ) 
+												when Pos_Der_Fun.cod_mercadoria = 'D13'
+												then Pos_Der_Fun.tam_lote_padrao_alocacao*Pos_Der_Fun.qte_posicao_comprada_atual*(100000.0/power(1.0+(Pos_Der_Fun.val_exercicio_opcao/100.0),252/252.0))
+												--PONTO DO CONTRATO * Indicador * CONTRATOS EM ABERTO * EXERCÍCIO 
+												when Pos_Der_Fun.cod_mercadoria in ('ICF','SFI')
+												then Pos_Der_Fun.tam_lote_padrao_alocacao*@val_indicador_economico*Pos_Der_Fun.qte_posicao_comprada_atual*Pos_Der_Fun.val_exercicio_opcao 
+												--PONTO DO CONTRATO * CONTRATOS EM ABERTO * EXERCÍCIO 
+												else Pos_Der_Fun.tam_lote_padrao_alocacao*Pos_Der_Fun.qte_posicao_comprada_atual*Pos_Der_Fun.val_exercicio_opcao
+										 end  
+									else cast(abs(isnull(ROUND(Pos_Der_Fun.val_volume_posicao_comprada_real,2,1),0))	as decimal(17,2))
+							  end, --val_volume_posicao_atual
+		FLG_CTA_ERRO		= CASE WHEN c.num_sequencial_tipo_conta in (3,11) THEN 1 ELSE 0 END  --Indica se é Conta Erro
+		
+		from SI_DW.DW.TDWPOSICAO_DERIVATIVO_FUNGIVEL Pos_Der_Fun
+	
+		left join SI_DW.DW.TDWCONTA c
+		  on Pos_Der_Fun.cod_participante           = c.cod_operacional_participante
+		 and Pos_Der_Fun.cod_categoria_participante = c.cod_categoria 
+		 and Pos_Der_Fun.num_conta_investidor		  = c.num_identificacao_conta
+		 and Pos_Der_Fun.data_referencia			  >= c.data_inicio_vigencia 
+		 and Pos_Der_Fun.data_referencia            < isnull(c.data_fim_vigencia,'2076-12-31')	
+	
+		inner join si_dw.hst.TDWTS_INSTRUMENTO_ALTERNADO inst_a
+			on Pos_Der_Fun.cod_instrumento = inst_a.cod_instrumento
+			and Pos_Der_Fun.cod_origem_identificacao_instrumento = inst_a.cod_origem_identificacao_instrumento
+			and Pos_Der_Fun.cod_bolsa_valor = inst_a.cod_bolsa_valor
+			and Pos_Der_Fun.data_referencia >= inst_a.data_inicio_vigencia_historico 
+			and Pos_Der_Fun.data_referencia < isnull(inst_a.data_fim_vigencia_historico, '20790101')
+		
+		inner join si_dw.hst.TDWTS_INSTRUMENTO inst
+			on inst_a.num_sequencial_instrumento = inst.num_sequencial_instrumento
+			and Pos_Der_Fun.data_referencia >= inst.data_inicio_vigencia_historico 
+			and Pos_Der_Fun.data_referencia < isnull(inst.data_fim_vigencia_historico, '20790101')
+
+		left join si_dw.hst.TDWTS_INSTRUMENTO_DERIVATIVO inst_d
+			on inst_a.num_sequencial_instrumento = inst_d.num_sequencial_instrumento
+			and Pos_Der_Fun.data_referencia >= inst_d.data_inicio_vigencia_historico 
+			and Pos_Der_Fun.data_referencia < isnull(inst_d.data_fim_vigencia_historico, '20790101')
+		
+		left join si_dw.hst.TDWTS_INSTRUMENTO_OPCAO_DERIVATIVO inst_opc
+			on inst_a.num_sequencial_instrumento = inst_opc.num_sequencial_instrumento
+			and Pos_Der_Fun.data_referencia >= inst_opc.data_inicio_vigencia_historico 
+			and Pos_Der_Fun.data_referencia < isnull(inst_opc.data_fim_vigencia_historico, '20790101')              
+		
+		inner join SI_DW.hst.TDWTS_MODALIDADE_NEGOCIACAO_PERMITIDA inst_mod
+			on inst.cod_modalidade_negociacao_permitida = inst_mod.cod_modalidade_negociacao_permitida 
+			and Pos_Der_Fun.data_referencia >= inst_mod.data_inicio_vigencia_historico 
+			and Pos_Der_Fun.data_referencia < isnull(inst_mod.data_fim_vigencia_historico, '20790101')
+			and inst_mod.cod_mercadoria not in ('SCC','SCS')
+		left join (select distinct cod_mercadoria,cod_tipo_mercado,ind_exercicio_opcao,cod_tipo_opcao,num_tipo_grupo_contrato_derivativo=MIN(num_tipo_grupo_contrato_derivativo) 
+						from bcb.TSINTIPO_GRUPO_CONTRATO_DERIVATIVO_BACEN group by cod_mercadoria,cod_tipo_mercado,ind_exercicio_opcao,cod_tipo_opcao) CBC on --CONTRATO BACEN
+						cbc.cod_mercadoria			= inst_mod.cod_mercadoria	
+					and cbc.cod_tipo_mercado		= inst_mod.cod_modalidade_negociacao
+					and cbc.ind_exercicio_opcao		= '0'
+					and  ISNULL(NULLIF(cbc.cod_tipo_opcao, ''),'N') 	= ISNULL(NULLIF(inst_opc.cod_tipo_opcao, ''),'N') 
+				
+	where 
+		Pos_Der_Fun.data_referencia = @dt_proc
+		and Pos_Der_Fun.data_referencia = Pos_Der_Fun.data_posicao
+		and ISNULL(Pos_Der_Fun.qte_posicao_comprada_atual,0) > 0
+
+	---------------------------------------------------------------------------------------------------------------------------------------------
+	--VENDA  - Dados Fungiveis - SCS
+	INSERT INTO #tmp_cab (CAB_DT,CAB_CD_CONTRATO,CAB_IB_BOLSA,CAB_IB_CCP,CAB_IB_DIFERIDO,CAB_CD_COMPENSACAO,CAB_IB_ENTREGA_FISICA,CAB_CD_NATUREZA_OPERACAO,MCS_CD_MC,NEG_CD_NEG,COM_CD_COMITENTE,CAB_QT_CONTRATOS,CAB_VL_NOCIONAL,FLG_CTA_ERRO)
+	select  
+		CAB_DT				= Pos_Der_Fun.data_posicao,
+		CAB_CD_CONTRATO		= CBC.num_tipo_grupo_contrato_derivativo, --Código Contrato
+		CAB_IB_BOLSA		= 1,--Negociado em Bolsa
+		CAB_IB_CCP			= 1,--COM CCP
+		CAB_IB_DIFERIDO		= 1,--Liquidação Diferida							
+		CAB_CD_COMPENSACAO	= 3,--Compensação MULTIlateral
+		CAB_IB_ENTREGA_FISICA = CASE WHEN inst_d.cod_tipo_entrega_instrumento=1 THEN 1 ELSE 0 END, --COM Entrega = 1 / SEM Entrega = 0 
+		CAB_CD_NATUREZA_OPERACAO= '0', --1= Compra / 0= Venda
+		MCS_CD_MC			= Pos_Der_Fun.cod_membro_compensacao,
+		NEG_CD_NEG			= Pos_Der_Fun.cod_participante,
+		COM_CD_COMITENTE	= BCB.FN_CRIPTOGRAFAR_INVESTIDOR(CASE WHEN ISNULL(c.num_documento_identificacao_cvm_final,'') <> '' 
+																	THEN c.num_documento_identificacao_cvm_final 
+																	ELSE c.num_documento_identificacao_final end),
+		CAB_QT_CONTRATOS	= isnull(Pos_Der_Fun.qte_posicao_vendida_atual,0), --qte_posicao_atual
+		CAB_VL_NOCIONAL		= cast(abs(isnull(ROUND(Pos_Der_Fun.val_atualizado_ponta_cupom_debito_real,2,1),0))	as decimal(17,2)), --val_volume_posicao_atual
+		FLG_CTA_ERRO		= CASE WHEN c.num_sequencial_tipo_conta in (3,11) THEN 1 ELSE 0 END  --Indica se é Conta Erro
+		
+		from SI_DW.DW.TDWPOSICAO_DERIVATIVO_FUNGIVEL Pos_Der_Fun
+	
+		left join SI_DW.DW.TDWCONTA c
+		  on Pos_Der_Fun.cod_participante           = c.cod_operacional_participante
+		 and Pos_Der_Fun.cod_categoria_participante = c.cod_categoria 
+		 and Pos_Der_Fun.num_conta_investidor		  = c.num_identificacao_conta
+		 and Pos_Der_Fun.data_referencia			  >= c.data_inicio_vigencia 
+		 and Pos_Der_Fun.data_referencia            < isnull(c.data_fim_vigencia,'2076-12-31')	
+	
+		inner join si_dw.hst.TDWTS_INSTRUMENTO_ALTERNADO inst_a
+			on Pos_Der_Fun.cod_instrumento = inst_a.cod_instrumento
+			and Pos_Der_Fun.cod_origem_identificacao_instrumento = inst_a.cod_origem_identificacao_instrumento
+			and Pos_Der_Fun.cod_bolsa_valor = inst_a.cod_bolsa_valor
+			and Pos_Der_Fun.data_referencia >= inst_a.data_inicio_vigencia_historico 
+			and Pos_Der_Fun.data_referencia < isnull(inst_a.data_fim_vigencia_historico, '20790101')
+		
+		inner join si_dw.hst.TDWTS_INSTRUMENTO inst
+			on inst_a.num_sequencial_instrumento = inst.num_sequencial_instrumento
+			and Pos_Der_Fun.data_referencia >= inst.data_inicio_vigencia_historico 
+			and Pos_Der_Fun.data_referencia < isnull(inst.data_fim_vigencia_historico, '20790101')
+
+		left outer join si_dw.hst.TDWTS_INSTRUMENTO_DERIVATIVO inst_d
+			on inst_a.num_sequencial_instrumento = inst_d.num_sequencial_instrumento
+			and Pos_Der_Fun.data_referencia >= inst_d.data_inicio_vigencia_historico 
+			and Pos_Der_Fun.data_referencia < isnull(inst_d.data_fim_vigencia_historico, '20790101')
+		
+		left outer join si_dw.hst.TDWTS_INSTRUMENTO_OPCAO_DERIVATIVO inst_opc
+			on inst_a.num_sequencial_instrumento = inst_opc.num_sequencial_instrumento
+			and Pos_Der_Fun.data_referencia >= inst_opc.data_inicio_vigencia_historico 
+			and Pos_Der_Fun.data_referencia < isnull(inst_opc.data_fim_vigencia_historico, '20790101')              
+		
+		inner join SI_DW.hst.TDWTS_MODALIDADE_NEGOCIACAO_PERMITIDA inst_mod
+			on inst.cod_modalidade_negociacao_permitida = inst_mod.cod_modalidade_negociacao_permitida 
+			and Pos_Der_Fun.data_referencia >= inst_mod.data_inicio_vigencia_historico 
+			and Pos_Der_Fun.data_referencia < isnull(inst_mod.data_fim_vigencia_historico, '20790101')
+			and inst_mod.cod_mercadoria in ('SCC','SCS')
+
+		left join (select distinct cod_mercadoria,cod_tipo_mercado,ind_exercicio_opcao,cod_tipo_opcao,num_tipo_grupo_contrato_derivativo=MIN(num_tipo_grupo_contrato_derivativo) 
+						from bcb.TSINTIPO_GRUPO_CONTRATO_DERIVATIVO_BACEN group by cod_mercadoria,cod_tipo_mercado,ind_exercicio_opcao,cod_tipo_opcao) CBC on --CONTRATO BACEN
+						cbc.cod_mercadoria			= inst_mod.cod_mercadoria	
+					and cbc.cod_tipo_mercado		= inst_mod.cod_modalidade_negociacao
+					and cbc.ind_exercicio_opcao		= '0'
+					and  ISNULL(NULLIF(cbc.cod_tipo_opcao, ''),'N') 	= ISNULL(NULLIF(inst_opc.cod_tipo_opcao, ''),'N') 
+				
+	where 
+		Pos_Der_Fun.data_referencia = @dt_proc
+		and Pos_Der_Fun.data_referencia = Pos_Der_Fun.data_posicao
+		and ISNULL(Pos_Der_Fun.qte_posicao_vendida_atual,0) > 0
+
+	---------------------------------------------------------------------------------------------------------------------------------------------
+	--COMPRA - Dados Fungiveis - SCS
+	INSERT INTO #tmp_cab (CAB_DT,CAB_CD_CONTRATO,CAB_IB_BOLSA,CAB_IB_CCP,CAB_IB_DIFERIDO,CAB_CD_COMPENSACAO,CAB_IB_ENTREGA_FISICA,CAB_CD_NATUREZA_OPERACAO,MCS_CD_MC,NEG_CD_NEG,COM_CD_COMITENTE,CAB_QT_CONTRATOS,CAB_VL_NOCIONAL,FLG_CTA_ERRO)
+	select  
+		CAB_DT				= Pos_Der_Fun.data_posicao,
+		CAB_CD_CONTRATO		= CBC.num_tipo_grupo_contrato_derivativo, --Código Contrato
+		CAB_IB_BOLSA		= 1,--Negociado em Bolsa
+		CAB_IB_CCP			= 1,--COM CCP
+		CAB_IB_DIFERIDO		= 1,--Liquidação Diferida							
+		CAB_CD_COMPENSACAO	= 3,--Compensação MULTIlateral
+		CAB_IB_ENTREGA_FISICA = CASE WHEN inst_d.cod_tipo_entrega_instrumento=1 THEN 1 ELSE 0 END, --COM Entrega = 1 / SEM Entrega = 0 
+		CAB_CD_NATUREZA_OPERACAO= '1', --1= Compra / 0= Venda
+		MCS_CD_MC			= Pos_Der_Fun.cod_membro_compensacao,
+		NEG_CD_NEG			= Pos_Der_Fun.cod_participante,
+		COM_CD_COMITENTE	= BCB.FN_CRIPTOGRAFAR_INVESTIDOR(CASE WHEN ISNULL(c.num_documento_identificacao_cvm_final,'') <> '' 
+																	THEN c.num_documento_identificacao_cvm_final 
+																	ELSE c.num_documento_identificacao_final end),
+		CAB_QT_CONTRATOS	= isnull(Pos_Der_Fun.qte_posicao_comprada_atual,0), --qte_posicao_atual
+		CAB_VL_NOCIONAL		= cast(abs(isnull(ROUND(Pos_Der_Fun.val_atualizado_ponta_cupom_credito_real,2,1),0))	as decimal(17,2)), --val_volume_posicao_atual
+		FLG_CTA_ERRO		= CASE WHEN c.num_sequencial_tipo_conta in (3,11) THEN 1 ELSE 0 END  --Indica se é Conta Erro
+		
+		from SI_DW.DW.TDWPOSICAO_DERIVATIVO_FUNGIVEL Pos_Der_Fun
+	
+		left join SI_DW.DW.TDWCONTA c
+		  on Pos_Der_Fun.cod_participante           = c.cod_operacional_participante
+		 and Pos_Der_Fun.cod_categoria_participante = c.cod_categoria 
+		 and Pos_Der_Fun.num_conta_investidor		  = c.num_identificacao_conta
+		 and Pos_Der_Fun.data_referencia			  >= c.data_inicio_vigencia 
+		 and Pos_Der_Fun.data_referencia            < isnull(c.data_fim_vigencia,'2076-12-31')	
+		
+		inner join si_dw.hst.TDWTS_INSTRUMENTO_ALTERNADO inst_a
+			on Pos_Der_Fun.cod_instrumento = inst_a.cod_instrumento
+			and Pos_Der_Fun.cod_origem_identificacao_instrumento = inst_a.cod_origem_identificacao_instrumento
+			and Pos_Der_Fun.cod_bolsa_valor = inst_a.cod_bolsa_valor
+			and Pos_Der_Fun.data_referencia >= inst_a.data_inicio_vigencia_historico 
+			and Pos_Der_Fun.data_referencia < isnull(inst_a.data_fim_vigencia_historico, '20790101')
+		
+		inner join si_dw.hst.TDWTS_INSTRUMENTO inst
+			on inst_a.num_sequencial_instrumento = inst.num_sequencial_instrumento
+			and Pos_Der_Fun.data_referencia >= inst.data_inicio_vigencia_historico 
+			and Pos_Der_Fun.data_referencia < isnull(inst.data_fim_vigencia_historico, '20790101')
+
+		left join si_dw.hst.TDWTS_INSTRUMENTO_DERIVATIVO inst_d
+			on inst_a.num_sequencial_instrumento = inst_d.num_sequencial_instrumento
+			and Pos_Der_Fun.data_referencia >= inst_d.data_inicio_vigencia_historico 
+			and Pos_Der_Fun.data_referencia < isnull(inst_d.data_fim_vigencia_historico, '20790101')
+		
+		left join si_dw.hst.TDWTS_INSTRUMENTO_OPCAO_DERIVATIVO inst_opc
+			on inst_a.num_sequencial_instrumento = inst_opc.num_sequencial_instrumento
+			and Pos_Der_Fun.data_referencia >= inst_opc.data_inicio_vigencia_historico 
+			and Pos_Der_Fun.data_referencia < isnull(inst_opc.data_fim_vigencia_historico, '20790101')              
+		
+		inner join SI_DW.hst.TDWTS_MODALIDADE_NEGOCIACAO_PERMITIDA inst_mod
+			on inst.cod_modalidade_negociacao_permitida = inst_mod.cod_modalidade_negociacao_permitida 
+			and Pos_Der_Fun.data_referencia >= inst_mod.data_inicio_vigencia_historico 
+			and Pos_Der_Fun.data_referencia < isnull(inst_mod.data_fim_vigencia_historico, '20790101')
+			and inst_mod.cod_mercadoria in ('SCC','SCS')
+
+		left join (select distinct cod_mercadoria,cod_tipo_mercado,ind_exercicio_opcao,cod_tipo_opcao,num_tipo_grupo_contrato_derivativo=MIN(num_tipo_grupo_contrato_derivativo) 
+						from bcb.TSINTIPO_GRUPO_CONTRATO_DERIVATIVO_BACEN group by cod_mercadoria,cod_tipo_mercado,ind_exercicio_opcao,cod_tipo_opcao) CBC on --CONTRATO BACEN
+						cbc.cod_mercadoria			= inst_mod.cod_mercadoria	
+					and cbc.cod_tipo_mercado		= inst_mod.cod_modalidade_negociacao
+					and cbc.ind_exercicio_opcao		= '0'
+					and  ISNULL(NULLIF(cbc.cod_tipo_opcao, ''),'N') 	= ISNULL(NULLIF(inst_opc.cod_tipo_opcao, ''),'N') 
+				
+	where 
+		Pos_Der_Fun.data_referencia = @dt_proc
+		and Pos_Der_Fun.data_referencia = Pos_Der_Fun.data_posicao
+		and ISNULL(Pos_Der_Fun.qte_posicao_comprada_atual,0) > 0
+	
+	---------------------------------------------------------------------------------------------------------------------------------------------
+	--COMPRA/VENDA  - Dados Não-Fungiveis
+	INSERT INTO #tmp_cab (CAB_DT,CAB_CD_CONTRATO,CAB_IB_BOLSA,CAB_IB_CCP,CAB_IB_DIFERIDO,CAB_CD_COMPENSACAO,CAB_IB_ENTREGA_FISICA,CAB_CD_NATUREZA_OPERACAO,MCS_CD_MC,NEG_CD_NEG,COM_CD_COMITENTE,CAB_QT_CONTRATOS,CAB_VL_NOCIONAL,FLG_CTA_ERRO)
+	select  
+		CAB_DT				= Pos_Der_NFun.data_posicao,
+		CAB_CD_CONTRATO		= CBC.num_tipo_grupo_contrato_derivativo, --Código Contrato
+		CAB_IB_BOLSA		= 1,--Negociado em Bolsa
+		CAB_IB_CCP			= 1,--COM CCP
+		CAB_IB_DIFERIDO		= 1,--Liquidação Diferida							
+		CAB_CD_COMPENSACAO	= 3,--Compensação MULTIlateral
+		CAB_IB_ENTREGA_FISICA = CASE WHEN inst_d.cod_tipo_entrega_instrumento=1 THEN 1 ELSE 0 END, --COM Entrega = 1 / SEM Entrega = 0 
+		CAB_CD_NATUREZA_OPERACAO= CASE WHEN Pos_Der_NFun.cod_natureza_operacao = 'C' THEN '1' ELSE '0' end, --1= Compra / 0= Venda
+		MCS_CD_MC			= Pos_Der_NFun.cod_membro_compensacao,
+		NEG_CD_NEG			= Pos_Der_NFun.cod_participante,
+		COM_CD_COMITENTE	= BCB.FN_CRIPTOGRAFAR_INVESTIDOR (CASE WHEN ISNULL(c.num_documento_identificacao_cvm_final,'') <> '' 
+																	THEN c.num_documento_identificacao_cvm_final 
+																	ELSE c.num_documento_identificacao_final end),
+		CAB_QT_CONTRATOS	= isnull(Pos_Der_NFun.qte_contrato_atual,0), --qte_posicao_atual
+		CAB_VL_NOCIONAL		= cast(abs(isnull(ROUND(Pos_Der_NFun.val_volume_atual,2,1),0))	as decimal(17,2)), --val_volume_posicao_atual
+		FLG_CTA_ERRO		= CASE WHEN c.num_sequencial_tipo_conta in (3,11) THEN 1 ELSE 0 END  --Indica se é Conta Erro
+		
+		from si_dw.hst.TDWPM_POSICAO_DERIVATIVO_NAO_FUNGIVEL Pos_Der_NFun
+	
+		left join SI_DW.DW.TDWCONTA c
+		  on Pos_Der_NFun.cod_participante            = c.cod_operacional_participante
+		 and Pos_Der_NFun.cod_categoria_participante  = c.cod_categoria 
+		 and Pos_Der_NFun.num_conta_investidor		  = c.num_identificacao_conta
+		 and Pos_Der_NFun.data_referencia			  >= c.data_inicio_vigencia 
+		 and Pos_Der_NFun.data_referencia             < isnull(c.data_fim_vigencia,'2076-12-31')	
+		
+		inner join si_dw.hst.TDWTS_INSTRUMENTO_ALTERNADO inst_a
+			on Pos_Der_NFun.cod_instrumento = inst_a.cod_instrumento
+			and Pos_Der_NFun.cod_origem_identificacao_instrumento = inst_a.cod_origem_identificacao_instrumento
+			and Pos_Der_NFun.cod_bolsa_valor = inst_a.cod_bolsa_valor
+			and Pos_Der_NFun.data_referencia >= inst_a.data_inicio_vigencia_historico 
+			and Pos_Der_NFun.data_referencia < isnull(inst_a.data_fim_vigencia_historico, '20790101')
+		
+		inner join si_dw.hst.TDWTS_INSTRUMENTO inst
+			on inst_a.num_sequencial_instrumento = inst.num_sequencial_instrumento
+			and Pos_Der_NFun.data_referencia >= inst.data_inicio_vigencia_historico 
+			and Pos_Der_NFun.data_referencia < isnull(inst.data_fim_vigencia_historico, '20790101')
+
+		left join si_dw.hst.TDWTS_INSTRUMENTO_DERIVATIVO inst_d
+			on inst_a.num_sequencial_instrumento = inst_d.num_sequencial_instrumento
+			and Pos_Der_NFun.data_referencia >= inst_d.data_inicio_vigencia_historico 
+			and Pos_Der_NFun.data_referencia < isnull(inst_d.data_fim_vigencia_historico, '20790101')
+		
+		left join si_dw.hst.TDWTS_INSTRUMENTO_OPCAO_DERIVATIVO inst_opc
+			on inst_a.num_sequencial_instrumento = inst_opc.num_sequencial_instrumento
+			and Pos_Der_NFun.data_referencia >= inst_opc.data_inicio_vigencia_historico 
+			and Pos_Der_NFun.data_referencia < isnull(inst_opc.data_fim_vigencia_historico, '20790101')              
+		
+		left join SI_DW.hst.TDWTS_MODALIDADE_NEGOCIACAO_PERMITIDA inst_mod
+			on inst.cod_modalidade_negociacao_permitida = inst_mod.cod_modalidade_negociacao_permitida 
+			and Pos_Der_NFun.data_referencia >= inst_mod.data_inicio_vigencia_historico 
+			and Pos_Der_NFun.data_referencia < isnull(inst_mod.data_fim_vigencia_historico, '20790101')
+
+		left join (select distinct cod_mercadoria,cod_tipo_mercado,ind_exercicio_opcao,cod_tipo_opcao,num_tipo_grupo_contrato_derivativo=MIN(num_tipo_grupo_contrato_derivativo) 
+						from bcb.TSINTIPO_GRUPO_CONTRATO_DERIVATIVO_BACEN group by cod_mercadoria,cod_tipo_mercado,ind_exercicio_opcao,cod_tipo_opcao) CBC on --CONTRATO BACEN
+						cbc.cod_mercadoria			= inst_mod.cod_mercadoria	
+					and cbc.cod_tipo_mercado		= inst_mod.cod_modalidade_negociacao
+					and cbc.ind_exercicio_opcao		= '0'
+					and  ISNULL(NULLIF(cbc.cod_tipo_opcao, ''),'N') 	= ISNULL(NULLIF(inst_opc.cod_tipo_opcao, ''),'N') 
+				
+	where 
+		Pos_Der_NFun.data_referencia = @dt_proc
+		and Pos_Der_NFun.data_referencia = Pos_Der_NFun.data_posicao
+		and ISNULL(Pos_Der_NFun.qte_contrato_atual,0) > 0
+
+
+	---------------------------------------------------------------------------------------------------------------------------------------------
+	---------------------------------------------------------------------------------------------------------------------------------------------
+	--BALCAO
+
+	--Compra e Venda - TERMO/OPCOES FLEXIVEIS 
+	INSERT INTO #tmp_cab (CAB_DT,CAB_CD_CONTRATO,CAB_IB_BOLSA,CAB_IB_CCP,CAB_IB_DIFERIDO,CAB_CD_COMPENSACAO,CAB_IB_ENTREGA_FISICA,CAB_CD_NATUREZA_OPERACAO,MCS_CD_MC,NEG_CD_NEG,COM_CD_COMITENTE,CAB_QT_CONTRATOS,CAB_VL_NOCIONAL,FLG_CTA_ERRO)
+	select  
+		CAB_DT				= opi.dt_dat_pregao, 
+		CAB_CD_CONTRATO		= CBC.num_tipo_grupo_contrato_derivativo,
+		CAB_IB_BOLSA		= '0', --case when p0.ch_tip_negociacao = 'SW' then 0 else 1 end,
+		CAB_IB_CCP			= case when opi.ch_flg_garantia='C' then 1 else 0 end,
+		CAB_IB_DIFERIDO		= 1,							
+		CAB_CD_COMPENSACAO	= case when opi.ch_flg_garantia='C' then 3 --compensação multilateral
+								else 2 --compensação bilateral
+							end,
+		CAB_IB_ENTREGA_FISICA=  0,
+		CAB_CD_NATUREZA_OPERACAO= case when isnull(ch_tip_operacao,'') = 'C' then 1 else 0 end, --1= Compra / 0= Venda
+		MCS_CD_MC			= opi.dc_cod_mc,
+		NEG_CD_NEG			= opi.dc_cod_negociador,
+		COM_CD_COMITENTE	= BCB.FN_CRIPTOGRAFAR_INVESTIDOR ((case when isnull(opi.dc_num_documento_subconta_replica,0) = 0 then opi.dc_num_documento_conta_replica else opi.dc_num_documento_subconta_replica end)), --utilizar rotina de criptografia no campo f.ch_num_documento (tem o tipo pessoa na 1a. posição),
+		CAB_QT_CONTRATOS	= opi.dc_num_contrato, --isnull(op.dc_qtd_contratos,0), 
+		CAB_VL_NOCIONAL		= case
+								when opi.vc_cod_contrato in('FCI','FPI') then op.dc_val_base*op.dc_fat_contrato*tgI.dc_val_indicador
+								when opi.vc_cod_contrato in('OFC','OFV') then op.dc_val_base*op.dc_fat_contrato*tgD.dc_val_indicador 
+								when opi.vc_cod_contrato in('FCS','FPS') then op.dc_val_base*op.dc_fat_contrato*tgS.dc_val_indicador
+								when opi.vc_cod_contrato in('TMC')	then op.dc_val_base*op.dc_fat_contrato*tgT.dc_val_indicador		
+								when opi.vc_cod_contrato in('FCB','FPB') then op.dc_val_base*op.dc_fat_contrato*tgB.dc_val_indicador
+								WHEN opi.dt_dat_pregao >= '20111212' and  
+									 opi.vc_cod_contrato in('FBC','FBP','FCC','FCP','FFC','FFP','FGC','FGP','FIC','FIP', 
+															'FLC','FLP','FMC','FMP','FSC','FSP','FXC','FXP') 
+													then op.dc_val_base*op.dc_fat_contrato*tgETF.dc_val_indicador		
+								else op.dc_val_base  
+							end,
+		
+		FLG_CTA_ERRO		= CASE WHEN TpC.num_sequencial_tipo_conta in (3,11) THEN 1 ELSE 0 END  --Indica se é Conta Erro
+
+		from  DW_CIF.dbo.TB_OPERACOES_INDICE opi 
+
+		inner join DW_CIF.dbo.TB_OPERACOES op  
+		   on opi.dc_num_contrato	= op.dc_num_contrato
+		  and opi.dt_dat_pregao	= op.dt_dat_pregao 
+		
+		left join ( select distinct c.cod_operacional_participante, c.num_identificacao_conta, c.num_sequencial_tipo_conta
+						from DW_CIF.dbo.TB_OPERACOES_INDICE opi_1
+						left join SI_DW.DW.TDWCONTA c
+						  on opi_1.dc_cod_negociador  = c.cod_operacional_participante
+						 and opi_1.dc_cod_conta		  = c.num_identificacao_conta
+						 and opi_1.dt_dat_pregao	  >= c.data_inicio_vigencia 
+						 and opi_1.dt_dat_pregao      < isnull(c.data_fim_vigencia,'2076-12-31')	
+						where 
+								opi_1.dt_dat_pregao 	= @dt_proc
+							and opi_1.dc_flg_situacao =(30)
+							and opi_1.ch_flg_pld		<> 'O'	    	
+							and opi_1.ch_tip_contrato <> 1
+							and isnull(opi_1.ch_tip_operacao,'') in ('C','V')
+
+						 ) as TpC 
+						 
+		  on opi.dc_cod_negociador=TpC.cod_operacional_participante
+		 and opi.dc_cod_conta=TpC.num_identificacao_conta
+				
+		left join (select distinct cod_mercadoria,cod_tipo_mercado,ind_exercicio_opcao,cod_tipo_opcao,num_tipo_grupo_contrato_derivativo=MIN(num_tipo_grupo_contrato_derivativo) 
+						from bcb.TSINTIPO_GRUPO_CONTRATO_DERIVATIVO_BACEN group by cod_mercadoria,cod_tipo_mercado,ind_exercicio_opcao,cod_tipo_opcao) CBC on --CONTRATO BACEN
+				cbc.cod_mercadoria			= opi.vc_cod_contrato --p0.ch_cod_produto	
+			and cbc.cod_tipo_mercado		= opi.ch_tip_contrato --p0.ch_tip_produto	
+			and cbc.ind_exercicio_opcao		= 0 
+			and cbc.cod_tipo_opcao			= case 
+												when opi.ch_tip_contrato	= 2 Then 'C'
+												when opi.ch_tip_contrato	= 3 Then 'P'
+											else '' end
+											
+		left join DW_CIF.dbo.tb_TABELAS_GARANTIAS tgI on --FCI/FPI
+			tgI.dt_dat_referencia	=  opi.dt_dat_operacao	--(select max(dt_dat_pregao) from TB_OPERACOES where dt_dat_pregao<opi.dt_dat_operacao)
+		and	tgI.ch_cod_sistema		= 'RT' 
+		and tgI.vc_cod_correcao		= 'IBV' 
+		and tgI.ch_cod_correcao1	= 'PF' 
+		and tgI.ch_cod_correcao2	= '' 
+
+		left join DW_CIF.dbo.tb_TABELAS_GARANTIAS tgD on --OFC/OFV
+			tgD.dt_dat_referencia	= opi.dt_dat_operacao
+		and	TGD.ch_cod_sistema		= 'RT'
+		and	TGD.vc_cod_correcao		= 'DOL' 
+		and	TGD.ch_cod_correcao1	= 'T1' 
+		and TGD.ch_cod_correcao2	= '' 
+
+		left join DW_CIF.dbo.tb_TABELAS_GARANTIAS tgS on --FCS/FPS
+			tgS.dt_dat_referencia   = opi.dt_dat_operacao	--(select max(dt_dat_pregao) from TB_OPERACOES where dt_dat_pregao < op.dt_dat_operacao)
+		and	tgS.ch_cod_sistema		= 'RT'
+		and	tgS.vc_cod_correcao		= 'IDI' 
+		and	tgS.ch_cod_correcao1	= '09' 
+		and	tgS.ch_cod_correcao2	= ''
+
+		left join DW_CIF.dbo.tb_TABELAS_GARANTIAS tgT on --TMC (TERMO DE CÂMBIO DOLAR)
+			tgT.dt_dat_referencia   = opi.dt_dat_operacao	--(select max(dt_dat_pregao) from TB_OPERACOES where dt_dat_pregao < op.dt_dat_operacao) foi alterada a definição
+		and	tgT.ch_cod_sistema		= 'RT'
+		and	tgT.vc_cod_correcao		= opi.vc_cod_indice--'DOL'			/*Miguel Salles em 07/02/2012*/
+		and	tgT.ch_cod_correcao1	= 'T1' --opi.vc_cod_tipo_indice
+		and	tgT.ch_cod_correcao2	= ''
+
+		left join DW_CIF.dbo.tb_TABELAS_GARANTIAS tgB on --FPB/FCB  - Opção sobre IBRX-50
+			tgB.dt_dat_referencia   = opi.dt_dat_operacao	
+		and	tgB.ch_cod_sistema		= 'RT'
+		and	tgB.vc_cod_correcao		= 'IBX' 
+		and	tgB.ch_cod_correcao1	= 'PF' 
+		and	tgB.ch_cod_correcao2	= ''
+
+		left join DW_CIF.dbo.tb_TABELAS_GARANTIAS tgETF on -- ETF				
+			tgETF.dt_dat_referencia   = (select max(dt_dat_pregao) from DW_CIF.dbo.TB_OPERACOES where dt_dat_pregao < op.dt_dat_operacao)
+		and	tgETF.ch_cod_sistema		= 'RT'						
+		and	tgETF.vc_cod_correcao		= opi.vc_cod_indice			
+		and	tgETF.ch_cod_correcao1		= 'PF'						
+		and	tgETF.ch_cod_correcao2		= ''						
+	
+	where 
+			opi.dt_dat_pregao 	= @dt_proc
+		and opi.dc_flg_situacao =(30)
+		and op.dc_flg_situacao  =(30)	
+		and opi.ch_flg_pld		<> 'O'	    	
+		and opi.ch_tip_contrato <> 1
+		and isnull(ch_tip_operacao,'') in ('C','V')
+		and isnull(op.dc_qtd_contratos,0)>0
+			
+
+	--SWAP 
+	INSERT INTO #tmp_cab (CAB_DT,CAB_CD_CONTRATO,CAB_IB_BOLSA,CAB_IB_CCP,CAB_IB_DIFERIDO,CAB_CD_COMPENSACAO,CAB_IB_ENTREGA_FISICA,CAB_CD_NATUREZA_OPERACAO,MCS_CD_MC,NEG_CD_NEG,COM_CD_COMITENTE,CAB_QT_CONTRATOS,CAB_VL_NOCIONAL,FLG_CTA_ERRO)
+	select  
+		CAB_DT				= opi.dt_dat_pregao, 
+		CAB_CD_CONTRATO		= CBC.num_tipo_grupo_contrato_derivativo,
+		CAB_IB_BOLSA		= '0', --case when p0.ch_tip_negociacao = 'SW' then 0 else 1 end,
+		CAB_IB_CCP			= case when opi.ch_flg_garantia='C' then 1 else 0 end,
+		CAB_IB_DIFERIDO		= 1,							
+		CAB_CD_COMPENSACAO	= case when opi.ch_flg_garantia='C' then 3 --compensação multilateral
+								else 2 --compensação bilateral
+							end,
+		CAB_IB_ENTREGA_FISICA=  0,
+		CAB_CD_NATUREZA_OPERACAO= case when opi.vc_cod_indice=cbc.cod_indice_primario then 1 else 0 end, --1= Compra / 0= Venda
+		MCS_CD_MC			= opi.dc_cod_mc,
+		NEG_CD_NEG			= opi.dc_cod_negociador,
+		COM_CD_COMITENTE	= BCB.FN_CRIPTOGRAFAR_INVESTIDOR ((case when isnull(opi.dc_num_documento_subconta_replica,0) = 0 then opi.dc_num_documento_conta_replica else opi.dc_num_documento_subconta_replica end)), --utilizar rotina de criptografia no campo f.ch_num_documento (tem o tipo pessoa na 1a. posição),
+		CAB_QT_CONTRATOS	= opi.dc_num_contrato,	--isnull(op.dc_qtd_contratos,0), 											
+		CAB_VL_NOCIONAL		= isnull(op.dc_val_base,0),
+		FLG_CTA_ERRO		= CASE WHEN TpC.num_sequencial_tipo_conta in (3,11) THEN 1 ELSE 0 END  --Indica se é Conta Erro
+
+		from  DW_CIF.dbo.TB_OPERACOES_INDICE opi
+	
+		inner join DW_CIF.dbo.TB_OPERACOES op  on		
+			opi.dc_num_contrato	= op.dc_num_contrato
+		and opi.dt_dat_pregao	= op.dt_dat_pregao 
+			
+		left join ( select distinct c.cod_operacional_participante, c.num_identificacao_conta, c.num_sequencial_tipo_conta
+						from DW_CIF.dbo.TB_OPERACOES_INDICE opi_1
+						left join SI_DW.DW.TDWCONTA c
+						  on opi_1.dc_cod_negociador  = c.cod_operacional_participante
+						 and opi_1.dc_cod_conta		  = c.num_identificacao_conta
+						 and opi_1.dt_dat_pregao	  >= c.data_inicio_vigencia 
+						 and opi_1.dt_dat_pregao      < isnull(c.data_fim_vigencia,'2076-12-31')	
+						where 
+								opi_1.dt_dat_pregao 	= @dt_proc
+							and opi_1.dc_flg_situacao =(30)
+							and opi_1.ch_flg_pld		<> 'O'	    	
+							and opi_1.ch_tip_contrato = 1 --SWAP
+							 ) as TpC 
+
+		  on opi.dc_cod_negociador=TpC.cod_operacional_participante
+		 and opi.dc_cod_conta=TpC.num_identificacao_conta
+				
+		left join (select distinct cod_mercadoria,cod_indice_primario,cod_tipo_mercado,ind_exercicio_opcao,cod_tipo_opcao,num_tipo_grupo_contrato_derivativo=MIN(num_tipo_grupo_contrato_derivativo) 
+						from bcb.TSINTIPO_GRUPO_CONTRATO_DERIVATIVO_BACEN group by cod_mercadoria,cod_indice_primario,cod_tipo_mercado,ind_exercicio_opcao,cod_tipo_opcao) CBC on --CONTRATO BACEN
+				cbc.cod_mercadoria			= opi.vc_cod_contrato --p0.ch_cod_produto	
+			and cbc.cod_tipo_mercado		= opi.ch_tip_contrato --p0.ch_tip_produto	
+			and cbc.ind_exercicio_opcao		= 0 
+			and cbc.cod_tipo_opcao			= '' 
+	
+	where 
+			opi.dt_dat_pregao 	= @dt_proc
+		and opi.dc_flg_situacao =(30)
+		and op.dc_flg_situacao  =(30)	
+		and opi.ch_flg_pld		<> 'O'	    	
+		and opi.ch_tip_contrato = 1 --SWAP
+		and isnull(op.dc_qtd_contratos,0)>0		
+
+
+	---------------------------------------------------------------------------------------------------------------------------------------------
+	---Carga na tabela final-----------------------------------------------------------------------------------------------------------------------------------------------------
+	INSERT INTO bcb.TSININFORMACAO_CONTRATO_ABERTO_DERIVATIVO_BACEN
+	(
+		data_referencia, 
+		cod_tipo_contrato, 
+		ind_bolsa, 
+		ind_contraparte, 
+		ind_liquidacao_tempo_diferido, 
+		cod_tipo_compensacao, 
+		ind_entrega_fisica_derivativo, 
+		cod_natureza_operacao,
+		cod_membro_compensacao, 
+		cod_negociador, 
+		cod_comitente, 
+		qte_contrato_aberto_derivativo, 
+		val_volume_contrato_aberto_derivativo,
+		ind_conta_erro
+	)
+
+		SELECT
+			CAB_DT,
+			CAB_CD_CONTRATO,
+			CAB_IB_BOLSA,
+			CAB_IB_CCP,
+			CAB_IB_DIFERIDO,							
+			CAB_CD_COMPENSACAO,
+			CAB_IB_ENTREGA_FISICA,
+			CAB_CD_NATUREZA_OPERACAO,
+			MCS_CD_MC,
+			NEG_CD_NEG,
+			COM_CD_COMITENTE,
+			CAB_QT_CONTRATOS,
+			CAB_VL_NOCIONAL,
+			FLG_CTA_ERRO			
+		FROM (
+				--Somente BALCAO
+				select 
+					CAB_DT,
+					CAB_CD_CONTRATO,
+					CAB_IB_BOLSA,
+					CAB_IB_CCP,
+					CAB_IB_DIFERIDO,							
+					CAB_CD_COMPENSACAO,
+					CAB_IB_ENTREGA_FISICA,
+					CAB_CD_NATUREZA_OPERACAO,
+					MCS_CD_MC,
+					NEG_CD_NEG,
+					COM_CD_COMITENTE,
+					CAB_QT_CONTRATOS	= COUNT	(DISTINCT CAB_QT_CONTRATOS), --SUM(CAB_QT_CONTRATOS),
+					CAB_VL_NOCIONAL		= SUM(CAB_VL_NOCIONAL),
+					FLG_CTA_ERRO			
+				from #tmp_cab cab
+				where CAB_IB_BOLSA=0
+				group by 
+					CAB_DT,
+					CAB_CD_CONTRATO,
+					CAB_IB_BOLSA,
+					CAB_IB_CCP,
+					CAB_IB_DIFERIDO,							
+					CAB_CD_COMPENSACAO,
+					CAB_IB_ENTREGA_FISICA,
+					CAB_CD_NATUREZA_OPERACAO,
+					MCS_CD_MC,
+					NEG_CD_NEG,
+					COM_CD_COMITENTE,
+					FLG_CTA_ERRO
+
+		UNION ALL
+
+				--Somente BOLSA
+				select 
+					CAB_DT,
+					CAB_CD_CONTRATO,
+					CAB_IB_BOLSA,
+					CAB_IB_CCP,
+					CAB_IB_DIFERIDO,							
+					CAB_CD_COMPENSACAO,
+					CAB_IB_ENTREGA_FISICA,
+					CAB_CD_NATUREZA_OPERACAO,
+					MCS_CD_MC,
+					NEG_CD_NEG,
+					COM_CD_COMITENTE,
+					CAB_QT_CONTRATOS	= SUM(CAB_QT_CONTRATOS),
+					CAB_VL_NOCIONAL		= SUM(CAB_VL_NOCIONAL),
+					FLG_CTA_ERRO				
+				from #tmp_cab cab
+				where CAB_IB_BOLSA=1
+				group by 
+					CAB_DT,
+					CAB_CD_CONTRATO,
+					CAB_IB_BOLSA,
+					CAB_IB_CCP,
+					CAB_IB_DIFERIDO,							
+					CAB_CD_COMPENSACAO,
+					CAB_IB_ENTREGA_FISICA,
+					CAB_CD_NATUREZA_OPERACAO,
+					MCS_CD_MC,
+					NEG_CD_NEG,
+					COM_CD_COMITENTE,
+					FLG_CTA_ERRO
+		) ARQ_FINAL
+	
+
+		drop table #tmp_cab
+	END TRY 
+	BEGIN CATCH 
+	
+		 SELECT
+				@ErrorNumber = ERROR_NUMBER(),
+				@ErrorMessage = ERROR_MESSAGE(),
+				@ErrorSeverity = ERROR_SEVERITY(),
+				@ErrorState = ERROR_STATE()
+				;
+
+		  RAISERROR (@ErrorMessage, -- Message text.
+			@ErrorSeverity -- Severity.
+			,@ErrorState -- State.
+			);
+	END CATCH; 		
+
+
+	COMMIT
+
+

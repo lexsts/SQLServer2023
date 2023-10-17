@@ -1,0 +1,84 @@
+Alex.
+Segue procedimento para rastrearmos as solicitações:
+
+SQLSERVER 
+- Mudança:
+No início:
+SELECT 'GuardAppEvent:Start',
+'GuardAppEventType:CRQxxxxxxxxxxxx',
+'GuardAppEventStrValue:Descricao da atividade';
+
+--COMANDOS
+
+No fim:
+SELECT 'GuardAppEvent:Released';
+
+
+
+- Incidente
+No início:
+SELECT 'GuardAppEvent:Start',
+'GuardAppEventType:INCxxxxxxxxxxxx',
+'GuardAppEventStrValue:Descricao da atividade';
+
+--COMANDOS
+
+No fim:
+SELECT 'GuardAppEvent:Released';
+
+
+
+- Requisicao
+No início:
+SELECT 'GuardAppEvent:Start',
+'GuardAppEventType:REQxxxxxxxxxxxx',
+'GuardAppEventStrValue:Descricao da atividade';
+
+--COMANDOS
+
+No fim:
+SELECT 'GuardAppEvent:Released';
+
+
+
+
+ORACLE
+- Mudança
+No início:
+SELECT 'GuardAppEvent:Start',
+'GuardAppEventType:CRQxxxxxxxxxxxx',
+'GuardAppEventStrValue:Descricao da atividade'
+FROM DUAL;
+
+--COMANDOS
+
+SELECT 'GuardAppEvent:Released';
+
+
+
+- Incidente
+No início:
+SELECT 'GuardAppEvent:Start',
+'GuardAppEventType:INCxxxxxxxxxxxx',
+'GuardAppEventStrValue:Descricao da atividade'
+FROM DUAL;
+
+--COMANDOS
+
+No fim:
+SELECT 'GuardAppEvent:Released';
+
+
+
+- Requisicao
+No início:
+SELECT 'GuardAppEvent:Start',
+'GuardAppEventType:REQxxxxxxxxxxxx',
+'GuardAppEventStrValue:Descricao da atividade'
+FROM DUAL;
+
+--COMANDOS
+
+No fim:
+SELECT 'GuardAppEvent:Released';
+

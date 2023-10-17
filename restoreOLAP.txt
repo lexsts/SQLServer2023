@@ -1,0 +1,8 @@
+<Restore xmlns="http://schemas.microsoft.com/analysisservices/2003/engine"> 
+<File>J:\Backup_novo\dm_gerencial.abf</File> 
+<DatabaseName>DM_GERENCIAL</DatabaseName> 
+<AllowOverwrite>true</AllowOverwrite> 
+<DbStorageLocation xmlns="http://schemas.microsoft.com/analysisservices/2008/engine/100/100">H:\Data\</DbStorageLocation>
+
+</Restore>
+

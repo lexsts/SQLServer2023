@@ -1,0 +1,22 @@
+select  'GuardAppEvent:Start'
+,'GuardAppEventType:METADADO'
+,'GuardAppEventStrValue:METADADO';
+use ReportServer
+
+SELECT 
+  Catalog.Name, 
+  Catalog.Path, 
+  Users.UserName,
+  Roles.RoleName
+FROM 
+  Catalog 
+  INNER JOIN Policies ON Catalog.PolicyID = Policies.PolicyID 
+  INNER JOIN PolicyUserRole ON PolicyUserRole.PolicyID = Policies.PolicyID 
+  INNER JOIN Users ON PolicyUserRole.UserID = Users.UserID
+  INNER JOIN Roles ON Roles.RoleID = PolicyUserRole.RoleID
+WHERE
+catalog.path like '%/SI/0195 - Recordes Pregão'
+ORDER BY Catalog.Path, Users.UserName
+
+select 'GuardAppEvent:Released';
+go 

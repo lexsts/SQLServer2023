@@ -1,0 +1,5 @@
+select 'kill -9 '||b.spid ||' # '||a.username||' '||a.program
+from v$session a, v$process b
+where a.username ='BLADELOGIC'
+and last_call_et/60/60>10
+and a.paddr=b.addr

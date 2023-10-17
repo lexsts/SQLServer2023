@@ -1,0 +1,108 @@
+
+
+
+SELECT  SS.session_id AS [spid]
+      , ISNULL(RQ.blocking_session_id, 0) AS [blocked_by]
+      , ISNULL(BL.blocking_count, 0) AS [blocking_count]
+      , BL.blocking_list
+      , SS.open_transaction_count AS [open_tran_count]
+      , COALESCE(DB_NAME(RQ.database_id), DB_NAME(SS.database_id)) AS [db_name]
+      , COALESCE(RQ.[status], SS.[status]) AS [status]
+      , SS.login_time
+      , COALESCE(RQ.start_time, SS.last_request_start_time) AS [start_time]
+      , DATEDIFF(SECOND, RQ.start_time, GETDATE()) AS [elapsed_time_sec]
+	  , SUBSTRING(st.TEXT, (rq.statement_start_offset/2)+1, ((CASE rq.statement_end_offset WHEN -1 THEN 
+        DATALENGTH(st.TEXT) ELSE rq.statement_end_offset END - rq.statement_start_offset)/2)+1) AS [statement_text]   
+      , COALESCE(ST.text, BU.event_info) AS [complete_text]
+      , qp.query_plan
+      , RQ.request_id
+      , RQ.dop as MAXDOP
+      , RQ.cpu_time
+      , RQ.[reads] AS [physical_reads]
+      , RQ.[writes] AS [physical_writes]
+      , RQ.logical_reads
+      , RQ.wait_type
+      , RQ.wait_resource
+      , RQ.wait_time
+      , RQ.command AS [cmd]
+      , SS.login_name
+      , SS.[host_name]
+      , SS.[program_name]
+      , MG.query_cost
+      , MG.requested_memory_kb AS [mem_requested_kb]
+      , MG.granted_memory_kb AS [mem_granted_kb]
+      , MG.used_memory_kb AS [mem_used_kb]
+      , MG.max_used_memory_kb AS [mem_max_used_kb]
+      , TP.user_objects_alloc_page_count AS [tempdb_UserObjs_Alloc_kb]
+      , TP.user_objects_dealloc_page_count AS [tempdb_UserObjs_Dealloc_kb]
+      , TP.internal_objects_alloc_page_count AS [tempdb_InternalObjs_Alloc_kb]
+      , TP.internal_objects_dealloc_page_count AS [tempdb_InternalObjs_Dealloc_kb]
+FROM  sys.dm_exec_sessions (NOLOCK) SS
+      LEFT OUTER JOIN sys.dm_exec_requests (NOLOCK) RQ ON SS.session_id = RQ.session_id
+      LEFT OUTER JOIN sys.dm_exec_query_memory_grants (NOLOCK) MG ON RQ.session_id = MG.session_id AND RQ.request_id = MG.request_id
+      LEFT OUTER JOIN sys.dm_db_session_space_usage (NOLOCK) TP ON SS.session_id = TP.session_id
+      LEFT OUTER JOIN (SELECT session_id, COUNT(1) AS blocking_count, blocking AS blocking_list
+                       FROM (SELECT blocking_session_id [session_id], STUFF((SELECT ', ' + CAST(R2.session_id AS varchar(12))
+                       FROM sys.dm_exec_requests (NOLOCK) R2 WHERE R1.blocking_session_id = R2.blocking_session_id 
+                       FOR XML PATH('')), 1, 2,'') [blocking] FROM sys.dm_exec_requests (NOLOCK) R1 
+                       WHERE blocking_session_id > 0) GR
+                       GROUP BY session_id, blocking) BL ON SS.session_id = BL.session_id  
+      OUTER APPLY sys.dm_exec_sql_text(RQ.SQL_HANDLE) AS ST
+      OUTER APPLY sys.dm_exec_query_plan(RQ.PLAN_HANDLE) AS QP
+      OUTER APPLY sys.dm_exec_input_buffer(SS.session_id, NULL) BU
+WHERE SS.session_id > 50 AND SS.session_id <> @@spid
+ AND (RQ.request_id IS NOT NULL OR (RQ.request_id IS NULL AND SS.open_transaction_count > 0))
+ AND [program_name] NOT IN ('BackupService', 'TdService', 'DmvCollector') /* Exclusive for Azure SQL */
+ORDER BY RQ.cpu_time DESC -- Ordered By High CPU Consumers
+
+
+---------------------------------------------------------------------------------------------------------------------------
+
+--Detailed
+SELECT
+des.session_id ,
+des.status ,
+des.login_name ,
+des.[HOST_NAME] ,
+der.blocking_session_id ,
+DB_NAME(der.database_id) AS database_name ,
+der.command ,
+des.cpu_time ,
+des.reads ,
+des.writes ,
+dec.last_write ,
+des.[program_name] ,
+der.wait_type ,
+der.wait_time ,
+der.last_wait_type ,
+der.wait_resource ,
+CASE des.transaction_isolation_level
+WHEN 0 THEN 'Unspecified'
+WHEN 1 THEN 'ReadUncommitted'
+WHEN 2 THEN 'ReadCommitted'
+WHEN 3 THEN 'Repeatable'
+WHEN 4 THEN 'Serializable'
+WHEN 5 THEN 'Snapshot'
+END AS transaction_isolation_level ,
+OBJECT_NAME(dest.objectid, der.database_id) AS OBJECT_NAME ,
+SUBSTRING(dest.text, der.statement_start_offset / 2,
+( CASE WHEN der.statement_end_offset = -1
+THEN DATALENGTH(dest.text)
+ELSE der.statement_end_offset
+END - der.statement_start_offset ) / 2)
+AS [executing statement] ,
+deqp.query_plan,
+der.plan_handle,
+ecp.*
+--into #cargaAtual
+from sys.dm_exec_sessions des
+LEFT JOIN sys.dm_exec_requests der
+ON des.session_id = der.session_id
+LEFT JOIN sys.dm_exec_connections dec
+ON des.session_id = dec.session_id
+JOIN SYS.DM_EXEC_CACHED_PLANS ecp
+ON der.plan_handle=ecp.plan_handle
+CROSS APPLY sys.dm_exec_sql_text(der.sql_handle) dest
+CROSS APPLY sys.dm_exec_query_plan(der.plan_handle) deqp
+WHERE des.session_id <> @@SPID;
+go

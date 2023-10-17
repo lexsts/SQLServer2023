@@ -1,0 +1,210 @@
+--SQLSERVER
+SELECT 'GuardAppEvent:Start',
+'GuardAppEventType:INC000001543105',
+'GuardAppEventStrValue:Atendimento de requisição';
+
+use DM_GERENCIAL
+
+go
+Select db_name(),fileid,case when groupid = 0 then 'log file' else 'data file' end,
+name,filename, 
+[file_size] = 
+convert(int,round((sysfiles.size*1.000)/128.000,0)),
+[space_used] =
+convert(int,round(fileproperty(sysfiles.name,'SpaceUsed')/128.000,0)),
+[space_left] =
+convert(int,round((sysfiles.size-fileproperty(sysfiles.name,'SpaceUsed'))/128.000,0))
+from
+dbo.sysfiles
+go
+
+SELECT DISTINCT dovs.logical_volume_name AS LogicalName,
+dovs.volume_mount_point AS Drive,
+CONVERT(INT,dovs.available_bytes/1048576.0) AS FreeSpaceInMB,
+CONVERT(INT,dovs.total_bytes/1048576.0) AS TotalSpaceInMB
+FROM sys.master_files mf
+CROSS APPLY sys.dm_os_volume_stats(mf.database_id, mf.FILE_ID) dovs
+ORDER BY FreeSpaceInMB ASC
+GO
+
+
+
+
+--Monitor database files for any 
+--pending I/O requests.
+SELECT 
+	DB_NAME(VFS.database_id) AS DatabaseName
+	,MF.name AS LogicalFileName
+	,MF.physical_name AS PhysicalFileName
+	,CASE MF.type
+		WHEN 0 THEN 'Data File'
+		WHEN 1 THEN 'Log File'		
+	END AS FileType
+	,PIOR.io_type AS InputOutputOperationType
+	,PIOR.io_pending AS Is_Request_Pending	
+	,PIOR.io_handle
+	,PIOR.scheduler_address 
+FROM sys.dm_io_pending_io_requests AS PIOR
+INNER JOIN sys.dm_io_virtual_file_stats(NULL,NULL) AS VFS
+ON PIOR.io_handle = VFS.file_handle 
+INNER JOIN sys.master_files AS MF
+ON VFS.database_id = MF.database_id AND VFS.file_id = MF.file_id
+GO
+
+SELECT DB_NAME(fs.database_id) AS [Database Name], mf.physical_name,
+io_stall_read_ms, num_of_reads,
+CAST(io_stall_read_ms/(1.0 + num_of_reads) AS NUMERIC(10,1)) AS
+[avg_read_stall_ms],io_stall_write_ms,num_of_writes
+,CAST(io_stall_write_ms/(1.0+num_of_writes) AS NUMERIC(10,1)) AS
+[avg_write_stall_ms],
+io_stall_read_ms + io_stall_write_ms AS [io_stalls], num_of_reads + num_of_writes
+AS [total_io],
+CAST((io_stall_read_ms + io_stall_write_ms)/(1.0 + num_of_reads + num_of_writes) AS
+NUMERIC(10,1))
+AS [avg_io_stall_ms]
+FROM sys.dm_io_virtual_file_stats(null,null) AS fs
+INNER JOIN sys.master_files AS mf WITH (NOLOCK)
+ON fs.database_id = mf.database_id
+AND fs.[file_id] = mf.[file_id]
+where DB_NAME(fs.database_id) IN ('DM_GERENCIAL','TEMPDB')
+ORDER BY avg_io_stall_ms DESC OPTION (RECOMPILE);
+-- Helps determine which database files on
+GO
+--ALL SESSIONS
+--DBCC FREEPROCCACHE
+--DBCC FREEPROCCACHE (0x06000400FFDD9103409D20EA0100000001000000000000000000000000000000000000000000000000000000) --PLAN_HANDLE
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED
+SELECT
+    SPID                = er.session_id
+    ,BlkBy              = CASE WHEN lead_blocker = 1 THEN -1 ELSE er.blocking_session_id END
+    ,ElapsedMS          = er.total_elapsed_time
+    ,CPU                = er.cpu_time
+    ,IOReads            = er.logical_reads + er.reads
+    ,IOWrites           = er.writes     
+    ,Executions         = ec.execution_count  
+    ,CommandType        = er.command         
+    ,LastWaitType       = er.last_wait_type    
+    ,ObjectName         = OBJECT_SCHEMA_NAME(qt.objectid,dbid) + '.' + OBJECT_NAME(qt.objectid, qt.dbid)  
+    ,SQLStatement       =
+        SUBSTRING
+        (
+            qt.text,
+            er.statement_start_offset/2,
+            (CASE WHEN er.statement_end_offset = -1
+                THEN LEN(CONVERT(nvarchar(MAX), qt.text)) * 2
+                ELSE er.statement_end_offset
+                END - er.statement_start_offset)/2
+        )        
+    ,STATUS             = ses.STATUS
+    ,[Login]            = ses.login_name
+    ,Host               = ses.host_name
+    ,DBName             = DB_Name(er.database_id)
+    ,StartTime          = er.start_time
+    ,Protocol           = con.net_transport
+    ,transaction_isolation =
+        CASE ses.transaction_isolation_level
+            WHEN 0 THEN 'Unspecified'
+            WHEN 1 THEN 'Read Uncommitted'
+            WHEN 2 THEN 'Read Committed'
+            WHEN 3 THEN 'Repeatable'
+            WHEN 4 THEN 'Serializable'
+            WHEN 5 THEN 'Snapshot'
+        END
+    ,ConnectionWrites   = con.num_writes
+    ,ConnectionReads    = con.num_reads
+    ,ClientAddress      = con.client_net_address
+    ,Authentication     = con.auth_scheme
+    ,DatetimeSnapshot   = GETDATE()
+FROM sys.dm_exec_requests er
+LEFT JOIN sys.dm_exec_sessions ses
+ON ses.session_id = er.session_id
+LEFT JOIN sys.dm_exec_connections con
+ON con.session_id = ses.session_id
+CROSS APPLY sys.dm_exec_sql_text(er.sql_handle) AS qt
+OUTER APPLY 
+(
+    SELECT execution_count = MAX(cp.usecounts)
+    FROM sys.dm_exec_cached_plans cp
+    WHERE cp.plan_handle = er.plan_handle
+) ec
+OUTER APPLY
+(
+    SELECT
+        lead_blocker = 1
+    FROM master.dbo.sysprocesses sp
+    WHERE sp.spid IN (SELECT blocked FROM master.dbo.sysprocesses)
+    AND sp.blocked = 0
+    AND sp.spid = er.session_id
+) lb
+ORDER BY
+    er.blocking_session_id DESC,
+    er.logical_reads + er.reads DESC,
+    er.session_id
+
+
+--Blocking
+--Finding Blocking Information
+SELECT 
+	R.session_id AS BlockedSessionID
+	,S.session_id AS BlockingSessionID
+	,Q1.text AS BlockedSession_TSQL
+	,Q2.text AS BlockingSession_TSQL
+	,S.original_login_name AS BlockingSession_LoginName
+	,S.program_name AS BlockingSession_ApplicationName
+	,S.host_name AS BlockingSession_HostName
+	,C1.connect_time
+	,C1.most_recent_sql_handle AS BlockedSession_SQLHandle
+	,C2.most_recent_sql_handle AS BlockingSession_SQLHandle	
+FROM sys.dm_exec_requests AS R
+INNER JOIN sys.dm_exec_sessions AS S
+ON R.blocking_session_id  = S.session_id
+INNER JOIN sys.dm_exec_connections AS C1
+ON R.session_id = C1.most_recent_session_id
+INNER JOIN sys.dm_exec_connections AS C2
+ON S.session_id = C2.most_recent_session_id
+CROSS APPLY sys.dm_exec_sql_text (C1.most_recent_sql_handle) AS Q1
+CROSS APPLY sys.dm_exec_sql_text (C2.most_recent_sql_handle) AS Q2;
+
+SELECT  er.session_id ,
+        host_name ,
+        program_name ,
+        original_login_name ,
+        er.reads ,
+        er.writes ,
+        er.cpu_time ,
+        wait_type ,
+        wait_time ,
+        wait_resource ,
+        blocking_session_id ,
+        st.text
+FROM    sys.dm_exec_sessions es
+        LEFT JOIN sys.dm_exec_requests er ON er.session_id = es.session_id
+        OUTER APPLY sys.dm_exec_sql_text(er.sql_handle) st
+WHERE   blocking_session_id > 0
+UNION
+SELECT  es.session_id ,
+        host_name ,
+        program_name ,
+        original_login_name ,
+        es.reads ,
+        es.writes ,
+        es.cpu_time ,
+        wait_type ,
+        wait_time ,
+        wait_resource ,
+        blocking_session_id ,
+        st.text
+FROM    sys.dm_exec_sessions es
+        LEFT JOIN sys.dm_exec_requests er ON er.session_id = es.session_id
+        OUTER APPLY sys.dm_exec_sql_text(er.sql_handle) st
+WHERE   es.session_id IN ( SELECT   blocking_session_id
+                           FROM     sys.dm_exec_requests
+                           WHERE    blocking_session_id > 0 );
+
+
+						   GO
+SELECT 'GuardAppEvent:Released';
+
+--sp_readerrorlog 0,1,'LONGER'
+--sp_who2
+

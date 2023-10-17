@@ -1,0 +1,159 @@
+--sessoes
+SELECT 
+--r.last_request_start_time
+--,r.last_request_end_time
+r.transaction_begin_time
+--,r.request_start_time
+,q.runtime
+--,r.scheduler_id
+,r.session_id
+,r.login_name
+,r.host_name
+,q.dbname
+--,q.objectid
+,r.wait_type
+--,r.last_wait_type
+--,r.wait_duration_ms
+--,q.plan_total_duration_ms
+,r.request_total_elapsed_time
+--,r.wait_duration_ms
+,substring(q.procname,18,25) ProcName
+,q.stmt_text
+FROM tbl_REQUESTS r
+LEFT OUTER JOIN tbl_NOTABLEACTIVEQUERIES q 
+    ON q.session_id = r.session_id AND q.runtime = r.runtime 
+WHERE r.transaction_begin_time between '2017-03-21 11:15:00.000' and '2017-03-21 11:20:00.00'
+--and host_name='WEBEXTRA01'
+and q.dbname='AN'
+and r.request_total_elapsed_time>30000
+--and q.runtime is not null
+--ORDER BY q.runtime
+ORDER BY q.rownum
+
+
+
+
+--Bloqueios
+SELECT 
+r.transaction_begin_time
+,r.session_id session_id_blocked
+,r.blocking_session_id session_id_blocking
+,r.login_name login_name_blocked
+,q.dbname
+,r.wait_type
+,r.wait_resource
+--,r.scheduler_id
+--,r.host_name
+,max(r.request_total_elapsed_time) elapsed_time_ms
+,'SPCS_PR_TRANSF_ACAO' procname
+,q.stmt_text stmt_text_blocked
+FROM tbl_REQUESTS r
+LEFT OUTER JOIN tbl_NOTABLEACTIVEQUERIES q 
+    ON q.session_id = r.session_id AND q.runtime = r.runtime 
+WHERE r.transaction_begin_time between '2017-03-23 15:30:00.000' and '2017-03-23 16:30:00.00'
+and r.blocking_session_id<>0
+and q.runtime is not null
+AND q.dbname IN ('CS','BT')
+AND r.login_name='btusr'
+AND q.procname<>'CREATE PROCEDURE  SPBT_UP_NUM_OFER_NET   (  		@P_Q'
+AND q.stmt_text<>'UPDATE dbo.TCSCTRL_MVTO_CUST            SET NUM_ULT_MVTO_CUST = NUM_ULT_MVTO_CUST + 1         OUTPUT INSERTED.COD_AGCT              ,                INSERTED.COD_TIPO_MVTO_CUST    ,                INSERTED.NUM_ULT_MVTO_CUST              INTO #NOVO_CODIGO_MOVIMENTO              (                 COD_'
+group by r.transaction_begin_time
+,r.session_id
+,r.blocking_session_id
+,r.login_name
+,q.dbname
+,r.wait_type
+,r.scheduler_id
+,r.host_name
+,q.stmt_text
+,q.procname
+,r.wait_resource
+
+
+
+
+
+
+
+
+
+--CONSULTAS BLOQUEIOS DA IG 19/05
+SELECT 
+r.transaction_begin_time
+,r.session_id id_blocked
+,r.blocking_session_id id_blocking
+,r.login_name login_blocked
+,q.dbname
+,r.task_state
+,r.wait_type
+,r.wait_resource
+--,r.scheduler_id
+--,r.host_name
+,max(r.request_total_elapsed_time) elapsed_time_ms
+,case when substring(q.procname,18,30) <> '[SPIG_SMP_CRIA_LOTE_RECEPCAO] ' then '[SPIG_SMP_CONFIRMA_RECEPCAO]' else substring(q.procname,18,30) end as "Stmt"
+--,'SPCS_PR_TRANSF_ACAO' procname
+,q.stmt_text stmt_text_blocked
+FROM tbl_REQUESTS r
+LEFT OUTER JOIN tbl_NOTABLEACTIVEQUERIES q 
+    ON q.session_id = r.session_id AND q.runtime = r.runtime 
+WHERE r.transaction_begin_time between '2017-05-19 15:30:00.000' and '2017-05-19 20:30:00.00'
+and r.blocking_session_id<>0
+and q.runtime is not null
+and q.stmt_text like '%AIGSOLI_RECB_MSG%'
+and r.wait_resource like '%1669580986%'
+--AND q.dbname IN ('CS','BT')
+--AND r.login_name='btusr'
+--AND q.procname<>'CREATE PROCEDURE  SPBT_UP_NUM_OFER_NET   (  		@P_Q'
+--AND q.stmt_text<>'UPDATE dbo.TCSCTRL_MVTO_CUST            SET NUM_ULT_MVTO_CUST = NUM_ULT_MVTO_CUST + 1         OUTPUT INSERTED.COD_AGCT              ,                INSERTED.COD_TIPO_MVTO_CUST    ,                INSERTED.NUM_ULT_MVTO_CUST              INTO #NOVO_CODIGO_MOVIMENTO              (                 COD_'
+group by r.transaction_begin_time
+,r.session_id
+,r.blocking_session_id
+,r.login_name
+,q.dbname
+,r.wait_type
+,r.scheduler_id
+,r.host_name
+,q.stmt_text
+,q.procname
+,r.wait_resource
+,r.task_state
+
+
+
+--sessoes
+SELECT 
+--r.last_request_start_time
+--,r.last_request_end_time
+r.transaction_begin_time
+--,r.request_start_time
+--,q.runtime
+--,r.scheduler_id
+,r.session_id
+,r.login_name
+,r.host_name
+,q.dbname
+--,q.objectid
+,r.task_state
+,r.wait_type
+--,r.last_wait_type
+--,r.wait_duration_ms
+--,q.plan_total_duration_ms
+,r.request_total_elapsed_time
+--,r.wait_duration_ms
+--,case when substring(q.procname,18,30) <> '[SPIG_SMP_CRIA_LOTE_RECEPCAO] ' then '[SPIG_SMP_CONFIRMA_RECEPCAO]' else substring(q.procname,18,30) end as "Stmt"
+,substring(q.procname,18,35) as "Stmt"
+,q.stmt_text
+FROM tbl_REQUESTS r
+LEFT OUTER JOIN tbl_NOTABLEACTIVEQUERIES q 
+    ON q.session_id = r.session_id AND q.runtime = r.runtime 
+WHERE r.transaction_begin_time between '2017-05-19 15:30:00.000' and '2017-05-19 20:30:00.00'
+and r.session_id=268
+--and q.stmt_text like '%AIGSOLI_RECB_MSG%'
+--and host_name='WEBEXTRA01'
+--and q.dbname='AN'
+--and r.request_total_elapsed_time>30000
+--and q.runtime is not null
+--ORDER BY q.runtime
+ORDER BY r.transaction_begin_time,r.rownum
+
+
