@@ -1,0 +1,1 @@
+restore database xxxxxx with recovery;

@@ -1,0 +1,1 @@
+GRANT VIEW DEFINITION TO [DBG\detoire];

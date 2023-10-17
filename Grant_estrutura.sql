@@ -1,0 +1,1 @@
+USE SGR GO GRANT VIEW DEFINITION TO [DBG\detoire]; GO 
