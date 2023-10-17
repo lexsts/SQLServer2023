@@ -1,0 +1,11 @@
+--Check last utilization
+use master
+select DATABASE_ID,NAME,CREATE_DATE,COMPATIBILITY_LEVEL,STATE_DESC,RECOVERY_MODEL_DESC from sys.databases 
+where database_id > 4
+AND [name] NOT IN 
+(select DISTINCT DB_NAME(database_id) 
+from sys.dm_db_index_usage_stats
+where (ISNULL(last_user_seek,'1/1/1970') > getdate()-90
+OR ISNULL(last_user_scan,'1/1/1970') > getdate()-90
+OR ISNULL(last_user_lookup,'1/1/1970') > getdate()-90
+OR ISNULL(last_user_update,'1/1/1970') > getdate()-90))

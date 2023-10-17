@@ -1,0 +1,125 @@
+SELECT 'GuardAppEvent:Start',
+'GuardAppEventType:[lastro] ',
+'GuardAppEventStrValue:Atendimento de requisição';
+
+
+--Desenvolver arquitetura de tabelas para armazenamento PRÉ e PÓS Validação + Checklist
+
+--Informações Nó ativo, SP, Collation,Versão do Produto,Instance Name,
+
+SELECT SERVERPROPERTY('MachineName') AS [MachineName], SERVERPROPERTY('ServerName') AS [ServerName],  
+SERVERPROPERTY('InstanceName') AS [Instance], SERVERPROPERTY('IsClustered') AS [IsClustered], 
+SERVERPROPERTY('ComputerNamePhysicalNetBIOS') AS [ComputerNamePhysicalNetBIOS], 
+SERVERPROPERTY('Edition') AS [Edition], SERVERPROPERTY('ProductLevel') AS [ProductLevel];
+
+
+--Backup
+
+declare @db_name varchar(50)
+
+
+set @db_name = 'adm_dashboard'
+
+SELECT 
+   CONVERT(CHAR(100), SERVERPROPERTY('Servername')) AS Server,
+   msdb.dbo.backupset.database_name, 
+   msdb.dbo.backupset.user_name,
+   msdb.dbo.backupset.backup_start_date, 
+   msdb.dbo.backupset.backup_finish_date,
+   msdb.dbo.backupset.expiration_date,
+   CASE msdb..backupset.type 
+       WHEN 'D' THEN 'FULL' 
+       WHEN 'L' THEN 'LOG'
+          ELSE 'DIFF' 
+   END AS backup_type, 
+   convert(varchar(50),msdb.dbo.backupset.backup_size) as [backup_size_Bytes], 
+   convert(varchar(50),(msdb.dbo.backupset.backup_size/1024)/1024) as [backup_size_MB],
+   convert(varchar(50),((msdb.dbo.backupset.backup_size/1024)/1024)/1024) as [backup_size_GB],
+   msdb.dbo.backupmediafamily.logical_device_name, 
+   msdb.dbo.backupmediafamily.physical_device_name,  
+   msdb.dbo.backupset.name AS backupset_name,
+   msdb.dbo.backupset.description
+FROM   msdb.dbo.backupmediafamily 
+   INNER JOIN msdb.dbo.backupset ON msdb.dbo.backupmediafamily.media_set_id = msdb.dbo.backupset.media_set_id 
+WHERE  
+--(CONVERT(datetime, msdb.dbo.backupset.backup_start_date, 102) >= GETDATE() - 7)
+--     and 
+       database_name = @db_name
+       and msdb..backupset.type <> 'L'
+ORDER BY 
+   msdb.dbo.backupset.backup_start_date DESC
+  
+
+
+  -- Pesquisar mensagens críticas do sys.messages
+  -- Como pegar parametro do language_id dinamico da instancia.
+  -- Pesquisar collation
+
+select * from sys.messages where severity = 10
+and is_event_logged = 1
+and language_id = 1033
+  
+
+
+--Errorlog 
+--Método para fazer join com a sys.messages + a saída do errorlog. (sys.messages.text + xp_readerrorlog.text)
+
+-- Look for I/O requests taking longer than 15 seconds in the five most recent SQL Server Error Logs (Query 12) (IO Warnings)
+CREATE TABLE #IOWarningResults(LogDate datetime, ProcessInfo sysname, LogText nvarchar(1000));
+
+       INSERT INTO #IOWarningResults 
+       EXEC xp_readerrorlog 0, 1, N'taking longer than 15 seconds';
+
+       INSERT INTO #IOWarningResults 
+       EXEC xp_readerrorlog 1, 1, N'taking longer than 15 seconds';
+
+       INSERT INTO #IOWarningResults 
+       EXEC xp_readerrorlog 2, 1, N'taking longer than 15 seconds';
+
+       INSERT INTO #IOWarningResults 
+       EXEC xp_readerrorlog 3, 1, N'taking longer than 15 seconds';
+
+       INSERT INTO #IOWarningResults 
+       EXEC xp_readerrorlog 4, 1, N'taking longer than 15 seconds';
+
+SELECT LogDate, ProcessInfo, LogText
+FROM #IOWarningResults
+ORDER BY LogDate DESC;
+
+DROP TABLE #IOWarningResults;  
+
+
+--Status DB (Remover ou verificar necessidade de manter arquivos de dados)
+SELECT DB_NAME([database_id]) AS [Database Name], 
+       [file_id], name, physical_name, type_desc, state_desc,
+          is_percent_growth, growth,
+          CONVERT(bigint, growth/128.0) AS [Growth in MB], 
+       CONVERT(bigint, size/128.0) AS [Total Size in MB]
+FROM sys.master_files WITH (NOLOCK)
+WHERE [database_id] > 4 
+AND [database_id] <> 32767
+OR [database_id] = 2
+ORDER BY DB_NAME([database_id]) OPTION (RECOMPILE);
+
+
+select name, create_date,state_desc from sys.databases 
+
+--validar MSDTC
+BEGIN DISTRIBUTED TRANSACTION
+
+select name, create_date,state_desc from sys.databases 
+
+
+COMMIT
+
+
+--Prioridade Baixo:
+
+/*
+-- Get SQL Server Agent Alert Information (Query 5) (SQL Server Agent Alerts)
+SELECT name, event_source, message_id, severity, [enabled], has_notification, 
+       delay_between_responses, occurrence_count, last_occurrence_date, last_occurrence_time
+FROM msdb.dbo.sysalerts WITH (NOLOCK)
+ORDER BY name OPTION (RECOMPILE);
+*/
+

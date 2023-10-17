@@ -1,0 +1,69 @@
+55	SP:StmtCompleted	89356	2022-02-01 04:04:10.367	Microsoft SQL Server	SI_DW	SQLPOS01803P	SPU_SI_PORTAL_DEPOSITARIA_POSICIONAL_EDIX	568896	SELECT   
+		   VAP.cod_usuario_administrador  
+		 , EVE.num_processo  
+		 , EVE.cod_isin  
+		 , VAP.nome_resumido_sociedade_emissora  
+		 , VAP.cod_especificacao_papel  
+		 , CASE EVE.cod_situacao_evento_dinheiro WHEN 'A' THEN 1  
+												 WHEN 'F' THEN 1  
+												 WHEN 'B' THEN 3  
+												 WHEN 'C' THEN 2  
+												 WHEN 'S' THEN 4  
+												 WHEN 'T' THEN 6  
+												 WHEN 'E' THEN 5  
+												 ELSE  0   
+		  END AS cod_situacao_evento_dinheiro  
+		, EVE.cod_imposto_renda_dividendo  
+		, ISNULL(EVE.cod_tipo_motivo_exclusao_evento,0)  AS cod_tipo_motivo_exclusao_evento  
+		, CAST(ANLT.perc_imposto_renda_analitico AS DECIMAL(5,2)) perc_imposto_renda_analitico  
+		, ANLT.data_aquisicao_saldo_analitico_credito  
+		, ANLT.val_aquisicao_saldo_analitico_credito  
+		, INVS_IDT.COD_IDT_INVS_INFI  
+		, INVS_IDT.DATA_NASC_FUND_INVS_INFI  
+		, INVS_IDT.COD_DEPE_PSFI_INFI  
+		, SUM(ANLT.qte_ativo_base_analitico) AS qte_ativo_base_analitico  
+		, SUM(ANLT.val_bruto_evento_dinheiro_provisao_analitico) AS val_bruto_evento_dinheiro_provisao_analitico  
+		, SUM(ANLT.val_liquido_evento_dinheiro_provisao_analitico) AS val_liquido_evento_dinheiro_provisao_analitico  
+	 INTO #EVENTO  
+	 FROM #TMP_PROCESSO as TMP   
+	INNER JOIN hca.TDWHCA_EVENTO_DINHEIRO_CUSTODIA_VIGENTE EVE WITH (NOLOCK)  
+	   ON TMP.processo = EVE.num_processo  
+	INNER JOIN DW_CIF.dbo.TDWINFORMACAO_CONSOLIDADA_ATIVO AS VAP WITH (NOLOCK)       
+	   ON EVE.cod_isin  = VAP.cod_isin     
+	  AND EVE.num_distribuicao  = VAP.num_distribuicao  
+	  AND VAP.cod_modalidade_negociacao  = 10  
+	  AND VAP.cod_usuario_administrador = @COD_PARTICIPANTE_FILTRO  
+	  AND VAP.data_fim_historico IS NULL  
+	INNER JOIN hca.TDWHCA_EVENTO_DINHEIRO_CUSTODIA_ANALITICO_VIGENTE AS ANLT WITH (NOLOCK)  
+	   ON EVE.num_processo = ANLT.num_processo  
+	  AND EVE.cod_operacional_participante = ANLT.cod_operacional_participante  
+	  AND EVE.num_identificacao_conta = ANLT.num_identificacao_conta  
+	  AND EVE.cod_carteira     = ANLT.cod_carteira  
+	  AND EVE.COD_ISIN         = ANLT.COD_ISIN  
+	  AND EVE.num_distribuicao = ANLT.num_distribuicao  
+	  AND EVE.data_importacao_registro = ANLT.data_importacao_registro  --Avaliar - Adriano
+	INNER JOIN #CS_CONTA_IDT INVS_IDT   
+	   ON INVS_IDT.COD_PAR = EVE.cod_operacional_participante  
+	  AND INVS_IDT.COD_CON_INVS = EVE.num_identificacao_conta  
+	WHERE EVE.data_importacao_registro = @DT_INICIO  
+	  AND ANLT.qte_ativo_base_analitico > 0  
+	  
+	  TDWHCA_EVENTO_DINHEIRO_CUSTODIA_VIGENTE
+	  TDWHCA_EVENTO_DINHEIRO_CUSTODIA_ANALITICO_VIGENTE
+	  DW_CIF.dbo.TDWINFORMACAO_CONSOLIDADA_ATIVO
+	  
+	GROUP BY  
+		  VAP.cod_usuario_administrador  
+		, EVE.num_processo  
+		, EVE.cod_isin  
+		, VAP.nome_resumido_sociedade_emissora  
+		, VAP.cod_especificacao_papel  
+		, EVE.cod_situacao_evento_dinheiro  
+		, EVE.cod_imposto_renda_dividendo  
+		, ISNULL(EVE.cod_tipo_motivo_exclusao_evento,0)  
+		, ANLT.perc_imposto_renda_analitico  
+		, ANLT.data_aquisicao_saldo_analitico_credito  
+		, ANLT.val_aquisicao_saldo_analitico_credito  
+		, INVS_IDT.COD_IDT_INVS_INFI  
+		, INVS_IDT.DATA_NASC_FUND_INVS_INFI  
+		, INVS_IDT.COD_DEPE_PSFI_INFI	2022-02-01 04:05:39.723	6186419	56824	15	2	568896	54230		580	CORPORATE\_svcSVIP_V2	75094	0X0105000000000005150000002DD93BBF52B7B140A0C7C365994F0100	CORPORATE	_svcSVIP_V2	5	1243866427	8272 - P	48096	586739007	0	SQLSINFEP\SQLSINFEP	CORPORATE\_svcSVIP_V2	15	19918838161	3913	236223201405	

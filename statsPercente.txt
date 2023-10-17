@@ -1,0 +1,29 @@
+UPDATE STATISTICS SI_DW.DW.TDWPOSICAO_DERIVATIVO_FUNGIVEL WITH SAMPLE 5 PERCENT;  
+
+
+SELECT 
+       'UPDATE STATISTICS '+SCHEMA_NAME(o.schema_id) + '.' + o.name +' '+ s.name+' WITH SAMPLE 20 PERCENT, PERSIST_SAMPLE_PERCENT = ON, MAXDOP=16;', p.stats_id,
+       s.name AS index_or_stats_name,
+       CASE 
+                     WHEN s.auto_created = 1 THEN 'Auto'
+                     WHEN s.user_created = 1 THEN 'User' 
+                     ELSE 'Index' 
+       END AS stat_source,
+       p.[rows] AS total_rows, 
+       p.[rows] - p.unfiltered_rows as filtered_rows, 
+       s.filter_definition,
+       p.rows_sampled AS sampled_rows,
+       (CAST(p.rows_sampled as float)/ p.rows) * 100.0 AS [sampled_percent],
+       CAST(p.last_updated AS DATETIME2(0)) AS last_updated, 
+       p.modification_counter AS num_modifications,
+       p.steps AS hg_steps, 
+       p.persisted_sample_percent AS persisted_sample, 
+       no_recompute,
+       s.is_temporary, s.is_incremental
+FROM sys.stats AS s
+            INNER JOIN sys.objects AS o ON s.object_id = o.object_id
+            CROSS APPLY sys.dm_db_stats_properties(o.object_id, s.stats_id) AS p
+       WHERE o.type IN ('U', 'V') 
+       AND o.[object_id] > 100
+    AND (CAST(p.rows_sampled as float)/ p.rows) * 100.0 <= 5.00
+ORDER BY p.[rows]

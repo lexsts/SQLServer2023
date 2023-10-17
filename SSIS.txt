@@ -1,0 +1,35 @@
+use msdb
+go
+
+select convert(xml,convert(varbinary(max),packagedata)),* from sysssispackages where name = 'ATDVAL_TAXA_SUMA_HTD_FIM'
+
+--apartir do 2005 
+select convert(xml,convert(varbinary(max),packagedata)), * from sysdtspackages90 where name like '%ATDVAL_TAXA_SUMA_HTD_FIM%'
+
+
+
+
+--ERRO DE VERSAO: instale atraves do DTUTIL
+dtutil /FILE D:\DBA\SSIS_CIP_CARGA_OTC_61\SSIS_CIP_CARGA_OTC_61\SSIS_CIP_CARGA_OTC_61.dtsx /DestServer SQLCORPEP\SQLCORPEP,1444 /Copy SQL;SSIS_CIP_CARGA_OTC_61
+
+
+-- deleta
+
+dtutil /SQL "\SSIS_C_ADWICDX_CONTA1" -SourceS "SQLSINFEP\SQLSINFEP,1444" /DELETE
+
+ 
+
+-- publica
+
+dtutil /FILE "D:\PC_TAXAS_MERCADO_INICIO_DIVULGACAO_T1_GPS.dtsx" /COPY SQL;PC_TAXAS_MERCADO_INICIO_DIVULGACAO_T1_GPS /DESTSERVER "sqldeptau\sqldeptau,1433"
+
+ 
+
+-- executa
+
+dtexec.exe /SQL "\SSIS_CIP_CARGA_CAD_FI" /SERVER "SQLPOS022DP\POS022P2,1445" /CONFIG "H:\SSIS\CIP\Config_SSIS_CIP.dtsConfig"
+
+dtexec.exe /FILE "D:\DBA\SSIS_CVM\SSIS_CIP_CARGA_CAD_FI.DTSX" /CONFIG "H:\SSIS\CIP\Config_SSIS_CIP.dtsConfig"
+ 
+
+dtexec.exe /SQL "\HBT_INFM_REEM_PROV" /SERVER "SQLSINFEP\SQLSINFEP,1444" /MAXCONCURRENT " -1 " /CHECKPOINTING OFF  /REPORTING EW
